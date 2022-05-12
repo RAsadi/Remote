@@ -23,38 +23,65 @@ let whitespace = [' ' '\t']+
 let newline = '\n'
 
 rule token = parse
-  | int { Literal (Int (int_of_string (Lexing.lexeme lexbuf))) }
+
+  (* Keywords *)
+  | "return" { Return }
+  | "if" { If }
+  | "else" { Else }
+  | "for" { For }
+  | "while" { While }
+  | "break" { Break }
+  | "continue" { Continue }
+  | "fn" { Fn }
+  | "u32" { U32 }
+  | "let" { Let }
+  | "mut" { Mut }
+  | "in" { In }
+  | "sizeof" { Sizeof }
+
+  (* Punc *)
   | '{' { LBrace }
   | '}' { RBrace }
   | '(' { LParen }
   | ')' { RParen }
   | ';' { Semi }
-  | '!' { Bang }
+  | ':' { Colon }
+  | "->" { Arrow }
+  | ',' { Comma }
+
+  (* Operators *)
   | '-' { Minus }
+  | '!' { Bang }
   | '~' { Tilde }
-  | '+' { Plus }
   | '*' { Star }
   | '/' { Slash }
+  | '+' { Plus }
+  | "++" { Incr }
+  | "--" { Decr }
+
+  | "<<" { LShift }
+  | ">>" { RShift }
+  | "&" { And }
+  | "|" { Or }
+  | "^" { Xor }
+
   | "&&" { LAnd }
   | "||" { LOr }
+
   | "==" { Eq }
   | "!=" { Neq }
   | '>' { Gt }
   | ">=" { Gte }
   | '<' { Lt }
   | "<=" { Lte }
+
   | '=' { Assign }
-  | "if" { If }
-  | "else" { Else }
-  | ":" { Colon }
-  | "return" { Return }
-  | "int" { Int }
-  | "for" { For }
-  | "while" { While }
-  | "do" { Do }
-  | "break" { Break }
-  | "continue" { Continue }
+
+  (* Literals *)
+  | int { Literal (Int (int_of_string (Lexing.lexeme lexbuf))) }
   | identifier { Iden (Lexing.lexeme lexbuf) }
+
+  (* Other *)
   | whitespace { token lexbuf }
   | newline { incr_linenum lexbuf; token lexbuf }
   | eof { Eof }
