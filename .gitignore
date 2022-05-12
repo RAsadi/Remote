@@ -1,0 +1,6 @@
+_build/
+.merlin
+_opam
+build/
+test/test_tmp/
+test/data/external/

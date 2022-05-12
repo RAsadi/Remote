@@ -1,0 +1,22 @@
+fn name(x : u32, y : u32) -> u32 {
+  let x : t = e;
+  let mut y = x;
+  if e {
+    let z = 10;
+  } else if e2 {
+    let f = 'a';
+  } else {
+    let q = "qus";
+  }
+  for i in iter {
+
+  }
+  while exp {
+
+  }
+  return y;
+}
+
+fn main() {
+  return name();
+}
