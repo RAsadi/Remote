@@ -1,5 +1,5 @@
-fn name(x : u32, y : u32) -> u32 {
-  let x : u32 = e;
+fn name(x: u32, y: u32) -> u32 {
+  let x: u32 = e;
   let mut y = x;
   if e {
     let z = 10;
@@ -9,10 +9,10 @@ fn name(x : u32, y : u32) -> u32 {
     let q = 2;
   }
   for i in iter {
-
+    do_somethin(i);
   }
   while exp {
-
+    do_something();
   }
   return y;
 }

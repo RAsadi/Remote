@@ -109,15 +109,15 @@ let expr_stmt := ~ = expr; Semi; <Expr>
 
 let assignment_stmt :=
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annoation); Assign; e = expr; Semi;
-    { Assignment (false, id, annotation, Some e)}
+    { Assignment {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=Some e}}
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annoation); Semi;
-    { Assignment (false, id, annotation, None)}
+    { Assignment {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=None}}
 
 let selection_stmt :=
   | If; e = expr; body = compound_stmt; { If (e, body, None) }
   | If; e = expr; body = compound_stmt; Else; els = else_stmt; { If (e, body, Some els) }
 
-let else_stmt := 
+let else_stmt :=
   | compound_stmt
   | selection_stmt
 
