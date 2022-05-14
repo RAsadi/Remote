@@ -95,9 +95,10 @@ let stmt :=
   | expr_stmt
   | compound_stmt
   | iteration_stmt
-  | assignment_stmt
+  | declaration_stmt
   | selection_stmt
   | jump_stmt
+  | assignment_stmt
 
 let jump_stmt :=
   | Return; ~ = option(expr); Semi; <Return>
@@ -108,11 +109,13 @@ let compound_stmt := LBrace; ~ = list(stmt); RBrace; <Block>
 
 let expr_stmt := ~ = expr; Semi; <Expr>
 
-let assignment_stmt :=
+let declaration_stmt :=
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annoation); Assign; e = expr; Semi;
-    { Assignment {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=Some e}}
+    { Declaration {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=Some e}}
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annoation); Semi;
-    { Assignment {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=None}}
+    { Declaration {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=None}}
+
+let assignment_stmt := id = Iden; Assign; e = expr; Semi; <Assignment>
 
 let selection_stmt :=
   | If; e = expr; body = compound_stmt; { If (e, body, None) }

@@ -163,6 +163,14 @@ and gen_binary ctx e1 op e2 =
   gen_stmt returns a list of instructions and the number of new variables defined
   The number of vars is used for allocating space for local vars
 *)
+let with_cont_break ctx continue_label break_label =
+  {
+    curr_scope = ctx.curr_scope;
+    var_map = ctx.var_map;
+    break_label = Some break_label;
+    continue_label = Some continue_label;
+  }
+
 let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
     exec_context * int * Instr.t list =
   match stmt with
@@ -184,14 +192,36 @@ let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
   | If (cond, if_true, if_false) ->
       gen_if ctx curr_local_vars cond if_true if_false
   | For (var, iterable, body) -> (ctx, 0, []) (* TODO *)
-  | While (cond, body) -> (ctx, 0, [])
+  | While (cond, body) -> gen_while ctx curr_local_vars cond body
   | Return e -> gen_return ctx curr_local_vars e
   | Break -> (ctx, 0, [])
   | Continue -> (ctx, 0, [])
-  | Assignment a -> gen_assignment ctx curr_local_vars a
+  | Declaration a -> gen_declaration ctx curr_local_vars a
+  | Assignment (id, expr) -> gen_assignment ctx curr_local_vars id expr
 
-and gen_assignment ctx curr_local_vars
-    ({ is_mut; id; type_annotation; defn } : assignment) =
+and gen_while ctx curr_local_vars cond body =
+  let start_label = gen_label "while_start" in
+  let end_label = gen_label "while_end" in
+  let _, curr_local_vars, body_instrs =
+    gen_stmt (with_cont_break ctx start_label end_label) curr_local_vars body
+  in
+  ( ctx,
+    curr_local_vars,
+    [ Instr.Label start_label ]
+    @ gen_expr ctx cond
+    @ [ Instr.Cmp (Real X0, Const 0); Instr.Beq end_label ]
+    @ body_instrs
+    @ [ Instr.B start_label; Instr.Label end_label ] )
+
+and gen_assignment ctx curr_local_vars id expr =
+  let offset = lookup_var ctx id in
+  ( ctx,
+    curr_local_vars,
+    gen_expr ctx expr
+    @ [ Instr.Raw ("str x0, [x29, #" ^ Int.to_string offset ^ "]") ] )
+
+and gen_declaration ctx curr_local_vars
+    ({ is_mut; id; type_annotation; defn } : declaration) =
   (match Map.find ctx.curr_scope id with
   | Some _ -> raise (Failure ("Trying to declare " ^ id ^ " multiple times"))
   | None -> ());

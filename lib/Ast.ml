@@ -46,7 +46,8 @@ and binary_expr = expr * binary_op * expr
 and var_expr = identifier [@@deriving sexp, compare]
 
 type stmt =
-  | Assignment of assignment
+  | Declaration of declaration
+  | Assignment of identifier * expr
   | Expr of expr
   | Block of stmt list
   | If of expr * stmt * stmt option
@@ -56,7 +57,7 @@ type stmt =
   | Break
   | Continue
 
-and assignment = {
+and declaration = {
   is_mut : bool;
   id : identifier;
   type_annotation : _type option;
