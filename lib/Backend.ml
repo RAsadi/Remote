@@ -31,14 +31,15 @@ let lookup_var (ctx : exec_context) id : int =
 
 let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list =
   match expr with
-  | Literal l -> ( match l with U32 i -> [ Instr.Mov (Real X0, Const i) ])
-  | Unary (op, e) -> gen_unary ctx op e
-  | Binary (e1, op, e2) -> gen_binary ctx e1 op e2
-  | Var id ->
+  | Literal (_, l) -> (
+      match l with U32 i -> [ Instr.Mov (Real X0, Const i) ])
+  | Unary (_, op, e) -> gen_unary ctx op e
+  | Binary (_, e1, op, e2) -> gen_binary ctx e1 op e2
+  | Var (_, id) ->
       let offset = lookup_var ctx id in
       [ Instr.Raw ("ldr x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
   | Sizeof _ -> []
-  | Call (id, args) ->
+  | Call (_, id, args) ->
       (*
           TODO In the future, we should adhere strictly to arm64 ABI.
           For now, we will pass in args through x0-x7; and fail otherwise
@@ -189,7 +190,7 @@ let with_cont_break ctx continue_label break_label =
 let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
     exec_context * int * Instr.t list =
   match stmt with
-  | Block stmts ->
+  | Block (_, stmts) ->
       List.fold stmts
         ~init:
           ( {
@@ -203,20 +204,20 @@ let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
         ~f:(fun (ctx, old_vars, old_instrs) stmt ->
           let ctx, new_vars, instrs = gen_stmt ctx old_vars stmt in
           (ctx, new_vars, old_instrs @ instrs))
-  | Expr e -> (ctx, curr_local_vars, gen_expr ctx e)
-  | If (cond, if_true, if_false) ->
+  | Expr (_, e) -> (ctx, curr_local_vars, gen_expr ctx e)
+  | If (_, cond, if_true, if_false) ->
       gen_if ctx curr_local_vars cond if_true if_false
-  | For (var, iterable, body) -> (ctx, 0, []) (* TODO *)
-  | While (cond, body) -> gen_while ctx curr_local_vars cond body
-  | Return e -> gen_return ctx curr_local_vars e
-  | Break ->
+  | For _ -> (ctx, 0, []) (* TODO *)
+  | While (_, cond, body) -> gen_while ctx curr_local_vars cond body
+  | Return (_, e) -> gen_return ctx curr_local_vars e
+  | Break _ ->
       let instrs =
         match ctx.break_label with
         | Some label -> [ Instr.B label ]
         | None -> raise (Failure "Cannot use break in this context")
       in
       (ctx, 0, instrs)
-  | Continue ->
+  | Continue _ ->
       let instrs =
         match ctx.continue_label with
         | Some label -> [ Instr.B label ]
@@ -224,7 +225,7 @@ let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
       in
       (ctx, 0, instrs)
   | Declaration a -> gen_declaration ctx curr_local_vars a
-  | Assignment (id, expr) -> gen_assignment ctx curr_local_vars id expr
+  | Assignment (_, id, expr) -> gen_assignment ctx curr_local_vars id expr
 
 and gen_while ctx curr_local_vars cond body =
   let start_label = gen_label "while_start" in
@@ -248,7 +249,7 @@ and gen_assignment ctx curr_local_vars id expr =
     @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
 
 and gen_declaration ctx curr_local_vars
-    ({ is_mut; id; type_annotation; defn } : declaration) =
+    ({ span = _; is_mut = _; id; type_annotation = _; defn } : declaration) =
   (match Map.find ctx.curr_scope id with
   | Some _ -> raise (Failure ("Trying to declare " ^ id ^ " multiple times"))
   | None -> ());
@@ -309,19 +310,27 @@ let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list =
   *)
   let arg_stmts =
     Block
-      (List.map fn.args ~f:(fun (id, _type) ->
-           Declaration
-             { is_mut = false; id; type_annotation = Some _type; defn = None }))
+      ( fn.span,
+        List.map fn.args ~f:(fun (span, id, _type) ->
+            Declaration
+              {
+                span;
+                is_mut = false;
+                id;
+                type_annotation = Some _type;
+                defn = None;
+              }) )
   in
   let ctx, num_local_vars, arg_instrs = gen_stmt ctx 0 arg_stmts in
+  assert (List.is_empty arg_instrs);
   let arg_ldr =
-    List.mapi fn.args ~f:(fun idx (id, _) ->
+    List.mapi fn.args ~f:(fun idx (_, id, _) ->
         let offset = lookup_var ctx id in
         Instr.Raw
           ("str x" ^ Int.to_string idx ^ ", [fp, #-" ^ Int.to_string offset
          ^ "]"))
   in
-  let _, num_local_vars, body = gen_stmt ctx 0 fn.body in
+  let _, num_local_vars, body = gen_stmt ctx num_local_vars fn.body in
   let preamble : Instr.t list =
     [
       Instr.Label fn.id;
@@ -336,7 +345,7 @@ let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list =
   in
   preamble @ body
 
-let gen_translation_unit (trans : translation_unit) : Instr.t list =
+let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
   let premable : Instr.t list =
     [
       Raw ".data";
@@ -361,4 +370,4 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list =
     List.fold trans ~init:[] ~f:(fun acc top_level ->
         match top_level with Fn fn -> acc @ gen_fn empty_ctx fn)
   in
-  premable @ fn_instrs
+  Ok (premable @ fn_instrs)

@@ -1,25 +1,25 @@
 open Core
 open Lexing
-open Printer
+open Base
+
+(* open Printer *)
 open Backend
 
 let colnum pos = pos.pos_cnum - pos.pos_bol - 1
 
 let pos_string pos =
-  let l = string_of_int pos.pos_lnum and c = string_of_int (colnum pos + 1) in
+  let l = Int.to_string pos.pos_lnum and c = Int.to_string (colnum pos + 1) in
   "line " ^ l ^ ", column " ^ c
 
 let parse' f s =
   let lexbuf = Lexing.from_string s in
-  try f Lexer.token lexbuf with
+  try Ok (f Lexer.token lexbuf) with
   | Parser.Error ->
-      print_endline ("Parse error at " ^ pos_string lexbuf.lex_curr_p);
-      exit 1
-  | Failure f ->
-      print_endline f;
-      exit 1
+      Or_error.error_string ("Parse error at " ^ pos_string lexbuf.lex_curr_p)
+  | Failure f -> Or_error.error_string f
 
-let parse_program s = parse' Parser.translation_unit s
+let parse_program s : Ast.translation_unit Or_error.t =
+  parse' Parser.translation_unit s
 
 let parse_file filename =
   let file = In_channel.create filename in
@@ -27,8 +27,14 @@ let parse_file filename =
   parse_program input_lines
 
 let compile_file filename =
-  let ast = parse_file filename in
-  let instrs = gen_translation_unit ast in
+  let open Result in
+  let instrs =
+    match parse_file filename >>= gen_translation_unit with
+    | Ok instrs -> instrs
+    | Error e ->
+        Stdio.prerr_endline (Base.Error.to_string_hum e);
+        Caml.exit 1
+  in
   let filename =
     Stdlib.Filename.remove_extension (Stdlib.Filename.basename filename)
   in
@@ -45,7 +51,8 @@ let compile_file filename =
   Out_channel.flush out_ch;
   (match
      Stdlib.Sys.command
-       ("as -g -arch arm64 -o build/" ^ filename ^ ".o build/" ^ filename ^ ".s ")
+       ("as -g -arch arm64 -o build/" ^ filename ^ ".o build/" ^ filename
+      ^ ".s ")
    with
   | 0 -> ()
   | _ ->

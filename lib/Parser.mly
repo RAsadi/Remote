@@ -75,14 +75,14 @@ let top_level_element :=
 
 let fn := 
   | Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt;
-    { {id=id; args=args; _type=sg; body=body } }
+    { {span=($startpos, $endpos); id=id; args=args; _type=sg; body=body } }
 
 let type_name ==
   | U32; { U32 }
 
-let type_annoation == Colon; ~ = type_name; <>
+let type_annotation == Colon; ~ = type_name; <>
 
-let type_binding := id = Iden; typ = type_annoation; <>
+let type_binding := id = Iden; typ = type_annotation; { (($startpos, $endpos), id, typ) }
 
 let type_signature == Arrow; ~ = type_name; <>
 
@@ -101,25 +101,25 @@ let stmt :=
   | assignment_stmt
 
 let jump_stmt :=
-  | Return; ~ = option(expr); Semi; <Return>
-  | Break; Semi; { Break }
-  | Continue; Semi; { Continue }
+  | Return; e = option(expr); Semi; { Return (($startpos, $endpos), e) }
+  | Break; Semi; { Break (($startpos, $endpos)) }
+  | Continue; Semi; { Continue (($startpos, $endpos)) }
 
-let compound_stmt := LBrace; ~ = list(stmt); RBrace; <Block>
+let compound_stmt := LBrace; stmts = list(stmt); RBrace; { Block (($startpos, $endpos), stmts) }
 
-let expr_stmt := ~ = expr; Semi; <Expr>
+let expr_stmt := e = expr; Semi; { Expr (($startpos, $endpos), e) }
 
 let declaration_stmt :=
-  | Let; mut = option(Mut); id = Iden; annotation = option(type_annoation); Assign; e = expr; Semi;
-    { Declaration {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=Some e}}
-  | Let; mut = option(Mut); id = Iden; annotation = option(type_annoation); Semi;
-    { Declaration {is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=None}}
+  | Let; mut = option(Mut); id = Iden; annotation = option(type_annotation); Assign; e = expr; Semi;
+    { Declaration {span=($startpos, $endpos); is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=Some e} }
+  | Let; mut = option(Mut); id = Iden; annotation = option(type_annotation); Semi;
+    { Declaration {span=($startpos, $endpos); is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=None} }
 
-let assignment_stmt := id = Iden; Assign; e = expr; Semi; <Assignment>
+let assignment_stmt := id = Iden; Assign; e = expr; Semi; { Assignment (($startpos, $endpos), id, e) }
 
 let selection_stmt :=
-  | If; e = expr; body = compound_stmt; { If (e, body, None) }
-  | If; e = expr; body = compound_stmt; Else; els = else_stmt; { If (e, body, Some els) }
+  | If; e = expr; body = compound_stmt; { If (($startpos, $endpos), e, body, None) }
+  | If; e = expr; body = compound_stmt; Else; els = else_stmt; { If (($startpos, $endpos), e, body, Some els) }
 
 let else_stmt :=
   | compound_stmt
@@ -129,67 +129,68 @@ let iteration_stmt :=
   | for_stmt
   | while_stmt
 
-let for_stmt := For; id = Iden; In; cond = expr; body = compound_stmt; <For>
+let for_stmt := For; id = Iden; In; cond = expr; body = compound_stmt; { For (($startpos, $endpos), id, cond, body) }
 
-let while_stmt := While; cond = expr; body = compound_stmt; <While>
+let while_stmt := While; cond = expr; body = compound_stmt;
+  { While (($startpos, $endpos), cond, body) }
 
 
 ////////// Expressions
 
 let primary_expr :=
-  | ~ = Iden; <Var>
-  | ~ = Literal; <Literal>
+  | i = Iden; { Var (($startpos, $endpos), i) }
+  | lit = Literal; { Literal (($startpos, $endpos), lit) }
   | LParen; ~ = expr; RParen; <>
-  | id = Iden; LParen; args = separated_list(Comma, expr); RParen; <Call>
+  | id = Iden; LParen; args = separated_list(Comma, expr); RParen; { Call (($startpos, $endpos), id, args) }
 
 let postfix_expr :=
   | primary_expr
-  | ~ = postfix_expr; ~ = postfix_op; <PostFix>
+  | expr = postfix_expr; op = postfix_op; { PostFix (($startpos, $endpos), expr, op) }
 
 let unary_expr :=
   | postfix_expr
-  | ~ = unary_op; ~ = unary_expr; <Unary>
-  | Sizeof; LParen; id = Iden; RParen; <Sizeof>
+  | op = unary_op; e = unary_expr; { Unary (($startpos, $endpos), op, e) }
+  | Sizeof; LParen; id = Iden; RParen; { Sizeof (($startpos, $endpos), id) }
 
 let multiplicative_expr :=
   | unary_expr
-  | e1 = multiplicative_expr; op = multiplicative_op; e2 = unary_expr; <Binary>
+  | e1 = multiplicative_expr; op = multiplicative_op; e2 = unary_expr; { Binary (($startpos, $endpos), e1, op, e2) }
 
 let additive_expr :=
   | multiplicative_expr
-  | e1 = additive_expr; op = additive_op; e2 = multiplicative_expr; <Binary>
+  | e1 = additive_expr; op = additive_op; e2 = multiplicative_expr; { Binary (($startpos, $endpos), e1, op, e2) }
 
 let shift_expr :=
   | additive_expr
-  | e1 = shift_expr; op = shift_op; e2 = additive_expr; <Binary>
+  | e1 = shift_expr; op = shift_op; e2 = additive_expr; { Binary (($startpos, $endpos), e1, op, e2) }
 
 let relation_expr :=
   | shift_expr
-  | e1 = relation_expr; op = relational_op; e2 = shift_expr; <Binary>
+  | e1 = relation_expr; op = relational_op; e2 = shift_expr; { Binary (($startpos, $endpos), e1, op, e2) }
 
 let equality_expr :=
   | relation_expr
-  | e1 = equality_expr; op = equality_op; e2 = relation_expr; <Binary>
+  | e1 = equality_expr; op = equality_op; e2 = relation_expr; { Binary (($startpos, $endpos), e1, op, e2) }
 
 let and_expr :=
   | equality_expr
-  | e1 = and_expr; And; e2 = equality_expr; { Binary(e1, And, e2) }
+  | e1 = and_expr; And; e2 = equality_expr; { Binary (($startpos, $endpos), e1, And, e2) }
 
 let xor_expr :=
   | and_expr
-  | e1 = xor_expr; Xor; e2 = and_expr; { Binary(e1, Xor, e2) }
+  | e1 = xor_expr; Xor; e2 = and_expr; { Binary (($startpos, $endpos), e1, Xor, e2) }
 
 let or_expr :=
   | xor_expr
-  | e1 = or_expr; Or; e2 = xor_expr; { Binary(e1, Or, e2) }
+  | e1 = or_expr; Or; e2 = xor_expr; { Binary (($startpos, $endpos), e1, Or, e2) }
 
 let land_expr :=
   | or_expr
-  | e1 = land_expr; LAnd; e2 = or_expr; { Binary(e1, LAnd, e2) }
+  | e1 = land_expr; LAnd; e2 = or_expr; { Binary (($startpos, $endpos), e1, LAnd, e2) }
 
 let lor_expr :=
   | land_expr
-  | e1 = lor_expr; LOr; e2 = land_expr; { Binary(e1, LOr, e2) }
+  | e1 = lor_expr; LOr; e2 = land_expr; { Binary (($startpos, $endpos), e1, LOr, e2) }
 
 let expr == lor_expr
 

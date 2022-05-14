@@ -33,31 +33,31 @@ type _type = U32 [@@deriving sexp, compare]
 type identifier = string [@@deriving sexp, compare]
 
 type expr =
-  | Literal of literal
+  | Literal of Span.t * literal
   | Unary of unary_expr
-  | Sizeof of identifier
+  | Sizeof of Span.t * identifier
   | Binary of binary_expr
-  | Var of identifier
-  | Call of identifier * expr list
-  | PostFix of expr * postfix_op
+  | Var of Span.t * identifier
+  | Call of Span.t * identifier * expr list
+  | PostFix of Span.t * expr * postfix_op
 
-and unary_expr = unary_op * expr
-and binary_expr = expr * binary_op * expr
-and var_expr = identifier [@@deriving sexp, compare]
+and unary_expr = Span.t * unary_op * expr
+and binary_expr = Span.t * expr * binary_op * expr [@@deriving sexp, compare]
 
 type stmt =
   | Declaration of declaration
-  | Assignment of identifier * expr
-  | Expr of expr
-  | Block of stmt list
-  | If of expr * stmt * stmt option
-  | While of expr * stmt
-  | For of identifier * expr * stmt
-  | Return of expr option
-  | Break
-  | Continue
+  | Assignment of Span.t * identifier * expr
+  | Expr of Span.t * expr
+  | Block of Span.t * stmt list
+  | If of Span.t * expr * stmt * stmt option
+  | While of Span.t * expr * stmt
+  | For of Span.t * identifier * expr * stmt
+  | Return of Span.t * expr option
+  | Break of Span.t
+  | Continue of Span.t
 
 and declaration = {
+  span : Span.t;
   is_mut : bool;
   id : identifier;
   type_annotation : _type option;
@@ -65,9 +65,10 @@ and declaration = {
 }
 [@@deriving sexp, compare]
 
-type typed_var = identifier * _type [@@deriving sexp, compare]
+type typed_var = Span.t * identifier * _type [@@deriving sexp, compare]
 
 type fn = {
+  span : Span.t;
   id : identifier;
   args : typed_var list;
   _type : _type option;
