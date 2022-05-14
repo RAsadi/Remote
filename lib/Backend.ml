@@ -194,8 +194,20 @@ let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
   | For (var, iterable, body) -> (ctx, 0, []) (* TODO *)
   | While (cond, body) -> gen_while ctx curr_local_vars cond body
   | Return e -> gen_return ctx curr_local_vars e
-  | Break -> (ctx, 0, [])
-  | Continue -> (ctx, 0, [])
+  | Break ->
+      let instrs =
+        match ctx.break_label with
+        | Some label -> [ Instr.B label ]
+        | None -> raise (Failure "Cannot use break in this context")
+      in
+      (ctx, 0, instrs)
+  | Continue ->
+      let instrs =
+        match ctx.continue_label with
+        | Some label -> [ Instr.B label ]
+        | None -> raise (Failure "Cannot use break in this context")
+      in
+      (ctx, 0, instrs)
   | Declaration a -> gen_declaration ctx curr_local_vars a
   | Assignment (id, expr) -> gen_assignment ctx curr_local_vars id expr
 
