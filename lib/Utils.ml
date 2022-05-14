@@ -45,7 +45,7 @@ let compile_file filename =
   Out_channel.flush out_ch;
   (match
      Stdlib.Sys.command
-       ("as -arch arm64 -o build/" ^ filename ^ ".o build/" ^ filename ^ ".s ")
+       ("as -g -arch arm64 -o build/" ^ filename ^ ".o build/" ^ filename ^ ".s ")
    with
   | 0 -> ()
   | _ ->

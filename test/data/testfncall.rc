@@ -1,0 +1,8 @@
+fn car() -> u32 {
+  let x = 3;
+  return x;
+}
+
+fn main() -> u32 {
+  return car();
+}

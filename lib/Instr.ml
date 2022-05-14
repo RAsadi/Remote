@@ -1,10 +1,11 @@
 module Register : sig
-  type real = X0 | X1 | X16 | X29 | Sp
+  type real = X0 | X1 | X2 | X3 | X4 | X5 | X6 | X7 | X16 | X30 | Fp | Sp
   type t = Real of real
 
   val to_string : t -> string
+  val from_int : int -> t
 end = struct
-  type real = X0 | X1 | X16 | X29 | Sp
+  type real = X0 | X1 | X2 | X3 | X4 | X5 | X6 | X7 | X16 | X30 | Fp | Sp
   type t = Real of real
 
   let to_string reg =
@@ -13,9 +14,31 @@ end = struct
         match r with
         | X0 -> "x0"
         | X1 -> "x1"
+        | X2 -> "x2"
+        | X3 -> "x3"
+        | X4 -> "x4"
+        | X5 -> "x5"
+        | X6 -> "x6"
+        | X7 -> "x7"
         | X16 -> "x16"
-        | X29 -> "x29"
+        | X30 -> "x30"
+        | Fp -> "fp"
         | Sp -> "sp")
+
+  let from_int i =
+    assert (i < 30);
+    match i with
+    | 0 -> Real X0
+    | 1 -> Real X1
+    | 2 -> Real X2
+    | 3 -> Real X3
+    | 4 -> Real X4
+    | 5 -> Real X5
+    | 6 -> Real X6
+    | 7 -> Real X7
+    | 29 -> Real Fp
+    | 30 -> Real X30
+    | _ -> Real Sp (* lol *)
 end
 
 module Operand : sig
@@ -48,6 +71,7 @@ type t =
   | Beq of label
   | Bne of label
   | B of label
+  | Bl of label
   | Svc of Operand.t
   | CSet of Register.t * string
   | Neg of Register.t * Operand.t
@@ -94,6 +118,7 @@ let to_string instr =
   | Beq label -> "beq " ^ label
   | Bne label -> "bne " ^ label
   | B label -> "b " ^ label
+  | Bl label -> "bl " ^ label
   | Ret -> "ret"
   | CSet (r, op) -> "cset " ^ Register.to_string r ^ ", " ^ op
   | Svc op -> "svc " ^ Operand.to_string op

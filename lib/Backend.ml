@@ -11,6 +11,8 @@ type exec_context = {
 }
 
 let label_count = ref 0
+let push reg_list = List.map reg_list ~f:(fun reg -> Instr.Push reg)
+let pop reg_list = List.map reg_list ~f:(fun reg -> Instr.Pop reg)
 
 (* Returns a new, unique label *)
 let gen_label label_name =
@@ -34,9 +36,22 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list =
   | Binary (e1, op, e2) -> gen_binary ctx e1 op e2
   | Var id ->
       let offset = lookup_var ctx id in
-      [ Instr.Raw ("ldr x0, [x29, #" ^ Int.to_string offset ^ "]") ]
+      [ Instr.Raw ("ldr x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
   | Sizeof _ -> []
-  | Call _ -> []
+  | Call (id, args) ->
+      (*
+          TODO In the future, we should adhere strictly to arm64 ABI.
+          For now, we will pass in args through x0-x7; and fail otherwise
+      *)
+      let num_args = List.length args in
+      if num_args > 8 then
+        raise (Failure "cannot handle function calls with more than 8 args");
+      let arg_instrs =
+        List.foldi args ~init:[] ~f:(fun idx acc arg ->
+            acc @ gen_expr ctx arg
+            @ [ Instr.Mov (Instr.Register.from_int idx, Reg (Real X0)) ])
+      in
+      arg_instrs @ [ Instr.Bl id ]
   | PostFix _ -> []
 
 and gen_unary ctx op expr =
@@ -230,25 +245,21 @@ and gen_assignment ctx curr_local_vars id expr =
   ( ctx,
     curr_local_vars,
     gen_expr ctx expr
-    @ [ Instr.Raw ("str x0, [x29, #" ^ Int.to_string offset ^ "]") ] )
+    @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
 
 and gen_declaration ctx curr_local_vars
     ({ is_mut; id; type_annotation; defn } : declaration) =
   (match Map.find ctx.curr_scope id with
   | Some _ -> raise (Failure ("Trying to declare " ^ id ^ " multiple times"))
   | None -> ());
-  let var_map = Map.set ctx.var_map ~key:id ~data:(curr_local_vars * 16) in
-  let curr_scope =
-    Map.set ctx.curr_scope ~key:id ~data:(curr_local_vars * 16)
-  in
+  let offset = (curr_local_vars + 1) * 16 in
+  let var_map = Map.set ctx.var_map ~key:id ~data:offset in
+  let curr_scope = Map.set ctx.curr_scope ~key:id ~data:offset in
   let instrs =
     match defn with
     | Some e ->
         gen_expr ctx e
-        @ [
-            Instr.Raw
-              ("str x0, [x29, #" ^ Int.to_string (curr_local_vars * 16) ^ "]");
-          ]
+        @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
     | None -> []
   in
   ( {
@@ -262,7 +273,7 @@ and gen_declaration ctx curr_local_vars
 
 and gen_return ctx curr_local_vars e =
   let epilogue : Instr.t list =
-    [ Mov (Real Sp, Reg (Real X29)); Pop (Real X29); Ret ]
+    [ Mov (Real Sp, Reg (Real Fp)); Raw "ldp x29, x30, [sp], 16"; Ret ]
   in
   let expr_instrs = match e with Some e -> gen_expr ctx e | None -> [] in
   (ctx, curr_local_vars, expr_instrs @ epilogue)
@@ -292,15 +303,35 @@ and gen_if ctx curr_local_vars cond if_true if_false =
   (ctx, total_num_vars, instrs)
 
 let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list =
+  (* This is a bit of a hack, but all args will have a declaration associated
+      which will update var_map as needed, and we will also generate
+     a series of movs which move into the correct places
+  *)
+  let arg_stmts =
+    Block
+      (List.map fn.args ~f:(fun (id, _type) ->
+           Declaration
+             { is_mut = false; id; type_annotation = Some _type; defn = None }))
+  in
+  let ctx, num_local_vars, arg_instrs = gen_stmt ctx 0 arg_stmts in
+  let arg_ldr =
+    List.mapi fn.args ~f:(fun idx (id, _) ->
+        let offset = lookup_var ctx id in
+        Instr.Raw
+          ("str x" ^ Int.to_string idx ^ ", [fp, #-" ^ Int.to_string offset
+         ^ "]"))
+  in
   let _, num_local_vars, body = gen_stmt ctx 0 fn.body in
   let preamble : Instr.t list =
-    [ Instr.Label fn.id; Instr.Push (Real X29) ]
+    [
+      Instr.Label fn.id;
+      Instr.Raw "stp fp, x30, [sp, #-16]!";
+      Instr.Mov (Real Fp, Reg (Real Sp));
+    ]
+    @ arg_ldr
     @
     if num_local_vars > 0 then
-      [
-        Instr.Mov (Real X29, Reg (Real Sp));
-        Instr.Sub (Real Sp, Real Sp, Const (num_local_vars * 16));
-      ]
+      [ Instr.Sub (Real Sp, Real Sp, Const (num_local_vars * 16)) ]
     else []
   in
   preamble @ body
