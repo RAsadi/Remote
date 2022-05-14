@@ -1,5 +1,6 @@
 open Ast
 open Base
+open Base.Result.Let_syntax
 
 type variable_mapping = (string, int, String.comparator_witness) Map.t
 
@@ -19,26 +20,26 @@ let gen_label label_name =
   Int.incr label_count;
   label_name ^ Int.to_string !label_count
 
-let lookup_var (ctx : exec_context) id : int =
+let lookup_var (ctx : exec_context) id : int Or_error.t =
   match Map.find ctx.curr_scope id with
-  | Some offset -> offset
+  | Some offset -> Ok offset
   | None -> (
       match Map.find ctx.var_map id with
       | None ->
-          raise
-            (Failure ("cannot assign to " ^ id ^ " without first declaring"))
-      | Some offset -> offset)
+          Or_error.error_string
+            ("cannot assign to " ^ id ^ " without first declaring")
+      | Some offset -> Ok offset)
 
-let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list =
+let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   match expr with
   | Literal (_, l) -> (
-      match l with U32 i -> [ Instr.Mov (Real X0, Const i) ])
+      match l with U32 i -> Ok [ Instr.Mov (Real X0, Const i) ])
   | Unary (_, op, e) -> gen_unary ctx op e
   | Binary (_, e1, op, e2) -> gen_binary ctx e1 op e2
   | Var (_, id) ->
-      let offset = lookup_var ctx id in
+      let%map offset = lookup_var ctx id in
       [ Instr.Raw ("ldr x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
-  | Sizeof _ -> []
+  | Sizeof _ -> Ok []
   | Call (_, id, args) ->
       (*
           TODO In the future, we should adhere strictly to arm64 ABI.
@@ -46,17 +47,25 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list =
       *)
       let num_args = List.length args in
       if num_args > 8 then
-        raise (Failure "cannot handle function calls with more than 8 args");
-      let arg_instrs =
-        List.foldi args ~init:[] ~f:(fun idx acc arg ->
-            acc @ gen_expr ctx arg
-            @ [ Instr.Mov (Instr.Register.from_int idx, Reg (Real X0)) ])
-      in
-      arg_instrs @ [ Instr.Bl id ]
-  | PostFix _ -> []
+        Or_error.error_string
+          "cannot handle function calls with more than 8 args"
+      else
+        let%map push_instrs =
+          List.fold args ~init:(Ok []) ~f:(fun acc arg ->
+              let%bind acc = acc in
+              let%map expr_instrs = gen_expr ctx arg in
+              acc @ expr_instrs @ [ Instr.Push (Real X0) ])
+        in
+        let load_instrs =
+          List.rev_mapi args ~f:(fun idx _ ->
+              Instr.Pop (Instr.Register.from_int idx))
+        in
+        push_instrs @ load_instrs @ [ Instr.Bl id ]
+  | PostFix _ -> Ok []
 
 and gen_unary ctx op expr =
-  gen_expr ctx expr
+  let%map ex = gen_expr ctx expr in
+  ex
   @
   match op with
   | Neg -> [ Instr.Neg (Real X0, Reg (Real X0)) ]
@@ -69,13 +78,14 @@ and gen_unary ctx op expr =
   | Tilde -> [ Instr.Mvn (Real X0, Reg (Real X0)) ]
 
 and gen_binary ctx e1 op e2 =
-  let e1_instrs = gen_expr ctx e1 in
-  let e2_instrs = gen_expr ctx e2 in
+  let%bind e1_instrs = gen_expr ctx e1 in
+  let%map e2_instrs = gen_expr ctx e2 in
   (* Most instrs we handle right now by pushing e1 on to the stack, putting e2 in x0, and popping e1 into x1
      and then operating on x1 and x0. This is just a shortcut to get everything before operating z*)
   let push_pop_instr_chain =
     e1_instrs @ [ Instr.Push (Real X0) ] @ e2_instrs @ [ Instr.Pop (Real X1) ]
   in
+
   match op with
   (* Arithmetic *)
   | Plus ->
@@ -188,65 +198,64 @@ let with_cont_break ctx continue_label break_label =
   }
 
 let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
-    exec_context * int * Instr.t list =
+    (exec_context * int * Instr.t list) Or_error.t =
   match stmt with
   | Block (_, stmts) ->
       List.fold stmts
         ~init:
-          ( {
-              var_map = ctx.var_map;
-              curr_scope = Map.empty (module String);
-              continue_label = ctx.continue_label;
-              break_label = ctx.break_label;
-            },
-            curr_local_vars,
-            [] )
-        ~f:(fun (ctx, old_vars, old_instrs) stmt ->
-          let ctx, new_vars, instrs = gen_stmt ctx old_vars stmt in
+          (Ok
+             ( {
+                 var_map = ctx.var_map;
+                 curr_scope = Map.empty (module String);
+                 continue_label = ctx.continue_label;
+                 break_label = ctx.break_label;
+               },
+               curr_local_vars,
+               [] ))
+        ~f:(fun acc stmt ->
+          let%bind ctx, old_vars, old_instrs = acc in
+          let%map ctx, new_vars, instrs = gen_stmt ctx old_vars stmt in
           (ctx, new_vars, old_instrs @ instrs))
-  | Expr (_, e) -> (ctx, curr_local_vars, gen_expr ctx e)
+  | Expr (_, e) ->
+      let%map e = gen_expr ctx e in
+      (ctx, curr_local_vars, e)
   | If (_, cond, if_true, if_false) ->
       gen_if ctx curr_local_vars cond if_true if_false
-  | For _ -> (ctx, 0, []) (* TODO *)
+  | For _ -> Ok (ctx, curr_local_vars, []) (* TODO *)
   | While (_, cond, body) -> gen_while ctx curr_local_vars cond body
   | Return (_, e) -> gen_return ctx curr_local_vars e
-  | Break _ ->
-      let instrs =
-        match ctx.break_label with
-        | Some label -> [ Instr.B label ]
-        | None -> raise (Failure "Cannot use break in this context")
-      in
-      (ctx, 0, instrs)
-  | Continue _ ->
-      let instrs =
-        match ctx.continue_label with
-        | Some label -> [ Instr.B label ]
-        | None -> raise (Failure "Cannot use break in this context")
-      in
-      (ctx, 0, instrs)
+  | Break _ -> (
+      match ctx.break_label with
+      | Some label -> Ok (ctx, curr_local_vars, [ Instr.B label ])
+      | None -> Or_error.error_string "Cannot use break in this context")
+  | Continue _ -> (
+      match ctx.continue_label with
+      | Some label -> Ok (ctx, curr_local_vars, [ Instr.B label ])
+      | None -> Or_error.error_string "Cannot use break in this context")
   | Declaration a -> gen_declaration ctx curr_local_vars a
   | Assignment (_, id, expr) -> gen_assignment ctx curr_local_vars id expr
 
 and gen_while ctx curr_local_vars cond body =
   let start_label = gen_label "while_start" in
   let end_label = gen_label "while_end" in
-  let _, curr_local_vars, body_instrs =
+  let%bind _, curr_local_vars, body_instrs =
     gen_stmt (with_cont_break ctx start_label end_label) curr_local_vars body
   in
+  let%map cond = gen_expr ctx cond in
   ( ctx,
     curr_local_vars,
     [ Instr.Label start_label ]
-    @ gen_expr ctx cond
+    @ cond
     @ [ Instr.Cmp (Real X0, Const 0); Instr.Beq end_label ]
     @ body_instrs
     @ [ Instr.B start_label; Instr.Label end_label ] )
 
 and gen_assignment ctx curr_local_vars id expr =
-  let offset = lookup_var ctx id in
+  let%bind offset = lookup_var ctx id in
+  let%map expr = gen_expr ctx expr in
   ( ctx,
     curr_local_vars,
-    gen_expr ctx expr
-    @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
+    expr @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
 
 and gen_declaration ctx curr_local_vars
     ({ span = _; is_mut = _; id; type_annotation = _; defn } : declaration) =
@@ -256,13 +265,15 @@ and gen_declaration ctx curr_local_vars
   let offset = (curr_local_vars + 1) * 16 in
   let var_map = Map.set ctx.var_map ~key:id ~data:offset in
   let curr_scope = Map.set ctx.curr_scope ~key:id ~data:offset in
-  let instrs =
+  let%map instrs =
     match defn with
     | Some e ->
-        gen_expr ctx e
+        let%map assignment_expr = gen_expr ctx e in
+        assignment_expr
         @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
-    | None -> []
+    | None -> Ok []
   in
+
   ( {
       var_map;
       curr_scope;
@@ -276,7 +287,9 @@ and gen_return ctx curr_local_vars e =
   let epilogue : Instr.t list =
     [ Mov (Real Sp, Reg (Real Fp)); Raw "ldp x29, x30, [sp], 16"; Ret ]
   in
-  let expr_instrs = match e with Some e -> gen_expr ctx e | None -> [] in
+  let%map expr_instrs =
+    match e with Some e -> gen_expr ctx e | None -> Ok []
+  in
   (ctx, curr_local_vars, expr_instrs @ epilogue)
 
 and gen_if ctx curr_local_vars cond if_true if_false =
@@ -285,14 +298,16 @@ and gen_if ctx curr_local_vars cond if_true if_false =
   let jmp_label =
     match if_false with Some _ -> false_label | None -> end_label
   in
-  let cond_instrs = gen_expr ctx cond in
-  let _, if_true_vars, if_true_instrs = gen_stmt ctx curr_local_vars if_true in
-  let _, if_false_vars, if_false_instrs =
+  let%bind cond_instrs = gen_expr ctx cond in
+  let%bind _, if_true_vars, if_true_instrs =
+    gen_stmt ctx curr_local_vars if_true
+  in
+  let%bind _, if_false_vars, if_false_instrs =
     match if_false with
     | Some if_false ->
-        let _, num_vars, instrs = gen_stmt ctx curr_local_vars if_false in
+        let%map _, num_vars, instrs = gen_stmt ctx curr_local_vars if_false in
         (ctx, num_vars, [ Instr.Label false_label ] @ instrs)
-    | None -> (ctx, 0, [])
+    | None -> Ok (ctx, curr_local_vars, [])
   in
   let total_num_vars = if_true_vars + if_false_vars in
   let instrs =
@@ -301,9 +316,9 @@ and gen_if ctx curr_local_vars cond if_true if_false =
     @ if_true_instrs @ [ Instr.B end_label ] @ if_false_instrs
     @ [ Instr.Label end_label ]
   in
-  (ctx, total_num_vars, instrs)
+  Ok (ctx, total_num_vars, instrs)
 
-let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list =
+let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list Or_error.t =
   (* This is a bit of a hack, but all args will have a declaration associated
       which will update var_map as needed, and we will also generate
      a series of movs which move into the correct places
@@ -321,16 +336,17 @@ let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list =
                 defn = None;
               }) )
   in
-  let ctx, num_local_vars, arg_instrs = gen_stmt ctx 0 arg_stmts in
+  let%bind ctx, num_local_vars, arg_instrs = gen_stmt ctx 0 arg_stmts in
   assert (List.is_empty arg_instrs);
-  let arg_ldr =
+  let%bind arg_ldr =
     List.mapi fn.args ~f:(fun idx (_, id, _) ->
-        let offset = lookup_var ctx id in
+        let%map offset = lookup_var ctx id in
         Instr.Raw
           ("str x" ^ Int.to_string idx ^ ", [fp, #-" ^ Int.to_string offset
          ^ "]"))
+    |> Result.all
   in
-  let _, num_local_vars, body = gen_stmt ctx num_local_vars fn.body in
+  let%map _, num_local_vars, body = gen_stmt ctx num_local_vars fn.body in
   let preamble : Instr.t list =
     [
       Instr.Label fn.id;
@@ -366,8 +382,12 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
       break_label = None;
     }
   in
-  let fn_instrs =
-    List.fold trans ~init:[] ~f:(fun acc top_level ->
-        match top_level with Fn fn -> acc @ gen_fn empty_ctx fn)
+  let%map fn_instrs =
+    List.fold trans ~init:(Ok []) ~f:(fun acc tl ->
+        let%bind acc = acc in
+        match tl with
+        | Fn fn ->
+            let%map fn_res = gen_fn empty_ctx fn in
+            acc @ fn_res)
   in
-  Ok (premable @ fn_instrs)
+  premable @ fn_instrs
