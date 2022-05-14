@@ -33,11 +33,11 @@ rule token = parse
   | "break" { Break }
   | "continue" { Continue }
   | "fn" { Fn }
-  | "u32" { U32 }
   | "let" { Let }
   | "mut" { Mut }
   | "in" { In }
   | "sizeof" { Sizeof }
+  | "u32" { U32 }
 
   (* Punc *)
   | '{' { LBrace }
@@ -78,7 +78,7 @@ rule token = parse
   | '=' { Assign }
 
   (* Literals *)
-  | int { Literal (Int (int_of_string (Lexing.lexeme lexbuf))) }
+  | int { Literal (U32 (int_of_string (Lexing.lexeme lexbuf))) }
   | identifier { Iden (Lexing.lexeme lexbuf) }
 
   (* Other *)

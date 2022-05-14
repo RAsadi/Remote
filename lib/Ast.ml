@@ -1,8 +1,8 @@
 open Ppx_compare_lib.Builtin
 open Sexplib.Std
 
-type literal = Int of int [@@deriving sexp, compare]
-type unary_op = Neg | Bang | Tilde | Sizeof [@@deriving sexp, compare]
+type literal = U32 of int [@@deriving sexp, compare]
+type unary_op = Neg | Bang | Tilde [@@deriving sexp, compare]
 
 type binary_op =
   (* Arithmetic *)
@@ -38,7 +38,6 @@ type expr =
   | Sizeof of identifier
   | Binary of binary_expr
   | Var of identifier
-  | Conditional of expr * expr * expr
   | Call of identifier * expr list
   | PostFix of expr * postfix_op
 
@@ -47,26 +46,32 @@ and binary_expr = expr * binary_op * expr
 and var_expr = identifier [@@deriving sexp, compare]
 
 type stmt =
-  | Assignment of {
-      is_mut : bool;
-      id : identifier;
-      type_annotation : _type option;
-      defn : expr option;
-    }
+  | Assignment of assignment
   | Expr of expr
   | Block of stmt list
   | If of expr * stmt * stmt option
   | While of expr * stmt
-  | Do of stmt * expr
   | For of identifier * expr * stmt
   | Return of expr option
   | Break
   | Continue
+
+and assignment = {
+  is_mut : bool;
+  id : identifier;
+  type_annotation : _type option;
+  defn : expr option;
+}
 [@@deriving sexp, compare]
 
 type typed_var = identifier * _type [@@deriving sexp, compare]
 
-type fn = identifier * typed_var list * _type option * stmt
+type fn = {
+  id : identifier;
+  args : typed_var list;
+  _type : _type option;
+  body : stmt;
+}
 [@@deriving sexp, compare]
 
 type top_level_element = Fn of fn [@@deriving sexp, compare]

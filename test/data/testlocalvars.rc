@@ -1,0 +1,10 @@
+fn main() -> u32 {
+  let x = 10;
+  let y = 20;
+  let z = x + y;
+  if z > 30 {
+    return 5;
+  } else {
+    return x;
+  }
+}

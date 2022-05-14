@@ -71,10 +71,11 @@
 let translation_unit := ~ = list(top_level_element); Eof; <>
 
 let top_level_element :=
-  | fn
+  | ~ = fn; <Fn>
 
 let fn := 
-  | Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt; <Fn>
+  | Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt;
+    { {id=id; args=args; _type=sg; body=body } }
 
 let type_name ==
   | U32; { U32 }
