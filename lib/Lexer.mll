@@ -37,7 +37,9 @@ rule token = parse
   | "mut" { Mut }
   | "in" { In }
   | "sizeof" { Sizeof }
+
   | "u32" { U32 }
+  | "bool" { Bool }
 
   (* Punc *)
   | '{' { LBrace }
@@ -78,6 +80,8 @@ rule token = parse
   | '=' { Assign }
 
   (* Literals *)
+  | "true" { Literal (Bool true) }
+  | "false" { Literal (Bool false) }
   | int { Literal (U32 (int_of_string (Lexing.lexeme lexbuf))) }
   | identifier { Iden (Lexing.lexeme lexbuf) }
 

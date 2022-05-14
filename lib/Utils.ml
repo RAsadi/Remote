@@ -4,6 +4,7 @@ open Base
 
 (* open Printer *)
 open Backend
+open Typing
 
 let colnum pos = pos.pos_cnum - pos.pos_bol - 1
 
@@ -29,7 +30,9 @@ let parse_file filename =
 let compile_file filename =
   let open Result in
   let instrs =
-    match parse_file filename >>= gen_translation_unit with
+    match
+      parse_file filename >>= type_translation_unit >>= gen_translation_unit
+    with
     | Ok instrs -> instrs
     | Error e ->
         Stdio.prerr_endline (Base.Error.to_string_hum e);

@@ -23,17 +23,15 @@ let gen_label label_name =
 let lookup_var (ctx : exec_context) id : int Or_error.t =
   match Map.find ctx.curr_scope id with
   | Some offset -> Ok offset
-  | None -> (
-      match Map.find ctx.var_map id with
-      | None ->
-          Or_error.error_string
-            ("cannot assign to " ^ id ^ " without first declaring")
-      | Some offset -> Ok offset)
+  | None -> Ok (Map.find_exn ctx.var_map id)
+(* We know it has to exist because of type checking *)
 
 let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   match expr with
   | Literal (_, l) -> (
-      match l with U32 i -> Ok [ Instr.Mov (Real X0, Const i) ])
+      match l with
+      | U32 i -> Ok [ Instr.Mov (Real X0, Const i) ]
+      | Bool b -> Ok [ Instr.Mov (Real X0, Const (Bool.to_int b)) ])
   | Unary (_, op, e) -> gen_unary ctx op e
   | Binary (_, e1, op, e2) -> gen_binary ctx e1 op e2
   | Var (_, id) ->
@@ -258,10 +256,7 @@ and gen_assignment ctx curr_local_vars id expr =
     expr @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
 
 and gen_declaration ctx curr_local_vars
-    ({ span = _; is_mut = _; id; type_annotation = _; defn } : declaration) =
-  (match Map.find ctx.curr_scope id with
-  | Some _ -> raise (Failure ("Trying to declare " ^ id ^ " multiple times"))
-  | None -> ());
+    ({ span = _; mut = _; id; type_annotation = _; defn } : declaration) =
   let offset = (curr_local_vars + 1) * 16 in
   let var_map = Map.set ctx.var_map ~key:id ~data:offset in
   let curr_scope = Map.set ctx.curr_scope ~key:id ~data:offset in
@@ -273,7 +268,6 @@ and gen_declaration ctx curr_local_vars
         @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
     | None -> Ok []
   in
-
   ( {
       var_map;
       curr_scope;
@@ -330,7 +324,7 @@ let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list Or_error.t =
             Declaration
               {
                 span;
-                is_mut = false;
+                mut = Const;
                 id;
                 type_annotation = Some _type;
                 defn = None;

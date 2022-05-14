@@ -1,5 +1,6 @@
 %{
   open Ast
+  open SharedAst
 %}
 
 %token <Ast.literal> Literal
@@ -15,11 +16,12 @@
 %token Break
 %token Continue
 %token Fn
-%token U32
 %token Let
 %token Mut
 %token In
 %token Sizeof
+%token U32
+%token Bool
 
 // Punc
 %token LBrace
@@ -75,10 +77,11 @@ let top_level_element :=
 
 let fn := 
   | Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt;
-    { {span=($startpos, $endpos); id=id; args=args; _type=sg; body=body } }
+    { {span=($startpos, $endpos); id=id; args=args; _type=(match sg with Some sg -> sg | None -> Void); body=body } }
 
 let type_name ==
   | U32; { U32 }
+  | Bool; { Bool }
 
 let type_annotation == Colon; ~ = type_name; <>
 
@@ -111,9 +114,9 @@ let expr_stmt := e = expr; Semi; { Expr (($startpos, $endpos), e) }
 
 let declaration_stmt :=
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annotation); Assign; e = expr; Semi;
-    { Declaration {span=($startpos, $endpos); is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=Some e} }
+    { Declaration {span=($startpos, $endpos); mut=(match mut with Some _ -> Mut | None -> Const); id=id; type_annotation=annotation; defn=Some e} }
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annotation); Semi;
-    { Declaration {span=($startpos, $endpos); is_mut=(match mut with Some _ -> true | None -> false); id=id; type_annotation=annotation; defn=None} }
+    { Declaration {span=($startpos, $endpos); mut=(match mut with Some _ -> Mut | None -> Const); id=id; type_annotation=annotation; defn=None} }
 
 let assignment_stmt := id = Iden; Assign; e = expr; Semi; { Assignment (($startpos, $endpos), id, e) }
 
