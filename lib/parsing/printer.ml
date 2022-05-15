@@ -1,5 +1,5 @@
 open Core
-open Ast
+open Parsed_ast
 
 let print_program translation_unit =
   let formatter = Format.formatter_of_out_channel stdout in

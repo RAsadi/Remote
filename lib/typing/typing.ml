@@ -1,7 +1,9 @@
-open SharedAst
-open TypedAst
+open Ast
+open Ast.Ast_types
+open Parsing
 open Base
 open Base.Result.Let_syntax
+open Typed_ast
 
 type var_mapping = (string, _type * mutability, String.comparator_witness) Map.t
 type fn_type_info = { ret : _type; arg_types : _type list }
@@ -29,7 +31,8 @@ let lookup_fn (ctx : ctx) id : fn_type_info Or_error.t =
   | None -> Or_error.error_string ("Couldn't find function " ^ id)
   | Some a -> Ok a
 
-let rec type_expr (ctx : ctx) (expr : Ast.expr) : (_type * expr) Or_error.t =
+let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
+    (_type * expr) Or_error.t =
   let type_expr = type_expr ctx in
   match expr with
   | Literal (span, l) -> (
@@ -63,7 +66,7 @@ and type_binary_expr ctx span e1 op e2 =
   let%bind _type1, e1 = type_expr ctx e1 and _type2, e2 = type_expr ctx e2 in
   let%map new_type =
     match (op, _type1, _type2) with
-    | Plus, SharedAst.U32, SharedAst.U32 -> Ok SharedAst.U32
+    | Plus, Ast_types.U32, Ast_types.U32 -> Ok Ast_types.U32
     | Minus, U32, U32 -> Ok U32
     | Star, U32, U32 -> Ok U32
     | Slash, U32, U32 -> Ok U32
@@ -99,7 +102,7 @@ and type_unary_expr ctx span op e =
     match _type with
     | Bool -> (
         match op with
-        | Bang -> Ok SharedAst.Bool
+        | Bang -> Ok Ast_types.Bool
         | _ -> Or_error.error_string "Cannot apply op to bool")
     | U32 -> (
         match op with
@@ -110,7 +113,8 @@ and type_unary_expr ctx span op e =
   (new_type, Unary (span, new_type, op, e))
 
 (* TODO we should consider returning an annotated ast here, its not needed for now tho *)
-let rec type_stmt ret_type (ctx : ctx) (stmt : Ast.stmt) : ctx Or_error.t =
+let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) : ctx Or_error.t
+    =
   let type_stmt = type_stmt ret_type in
   match stmt with
   | Block (_, stmts) ->
@@ -205,7 +209,7 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Ast.stmt) : ctx Or_error.t =
       else Or_error.error_string "Invalid assignment"
   | For _ -> Or_error.error_string "TODO"
 
-let type_fn fn_map (fn : Ast.fn) =
+let type_fn fn_map (fn : Parsed_ast.fn) =
   let var_map =
     List.fold fn.args
       ~init:(Map.empty (module String))
@@ -217,11 +221,11 @@ let type_fn fn_map (fn : Ast.fn) =
   let%map _ = type_stmt fn._type ctx fn.body in
   ()
 
-let get_fn_sig fn_map (fn : Ast.fn) =
+let get_fn_sig fn_map (fn : Parsed_ast.fn) =
   let arg_types = List.map fn.args ~f:(fun (_, _, _type) -> _type) in
   Map.set fn_map ~key:fn.id ~data:{ ret = fn._type; arg_types }
 
-let type_translation_unit (translation_unit : Ast.translation_unit) =
+let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
   let fn_map : fn_mapping =
     List.fold translation_unit
       ~init:(Map.empty (module String))

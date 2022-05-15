@@ -1,10 +1,10 @@
-open Core
-open Lexing
-open Base
-
 (* open Printer *)
 open Backend
 open Typing
+open Parsing
+open Core
+open Lexing
+open Base
 
 let colnum pos = pos.pos_cnum - pos.pos_bol - 1
 
@@ -19,7 +19,7 @@ let parse' f s =
       Or_error.error_string ("Parse error at " ^ pos_string lexbuf.lex_curr_p)
   | Failure f -> Or_error.error_string f
 
-let parse_program s : Ast.translation_unit Or_error.t =
+let parse_program s : Parsed_ast.translation_unit Or_error.t =
   parse' Parser.translation_unit s
 
 let parse_file filename =
@@ -31,7 +31,7 @@ let compile_file filename =
   let open Result in
   let instrs =
     match
-      parse_file filename >>= type_translation_unit >>= gen_translation_unit
+      parse_file filename >>= type_translation_unit >>= Code_gen.gen_translation_unit
     with
     | Ok instrs -> instrs
     | Error e ->

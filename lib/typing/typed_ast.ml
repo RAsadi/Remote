@@ -1,6 +1,7 @@
 open Ppx_compare_lib.Builtin
 open Sexplib.Std
-open SharedAst
+open Ast.Ast_types
+open Parsing
 
 type literal = U32 of int | Bool of bool [@@deriving sexp, compare, equal]
 type identifier = string [@@deriving sexp, compare, equal]

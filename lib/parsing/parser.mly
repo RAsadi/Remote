@@ -1,10 +1,10 @@
 %{
-  open Ast
-  open SharedAst
+  open Ast.Ast_types
+  open Parsed_ast
 %}
 
-%token <Ast.literal> Literal
-%token <Ast.identifier> Iden
+%token <Ast.Ast_types.literal> Literal
+%token <Ast.Ast_types.identifier> Iden
 %token Eof
 
 // Keywords
@@ -67,7 +67,7 @@
 // Assignment
 %token Assign
 
-%start <Ast.translation_unit> translation_unit
+%start <Parsed_ast.translation_unit> translation_unit
 %%
 
 let translation_unit := ~ = list(top_level_element); Eof; <>

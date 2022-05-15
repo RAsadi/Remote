@@ -1,4 +1,4 @@
-open Remote.Utils
+open Compile
 open Core
 
 let usage_msg = "rc <files...>"

@@ -1,11 +1,5 @@
-(ocamllex Lexer)
-
-(menhir
- (modules Parser)
- (flags --explain --dump))
-
 (library
- (name remote)
+ (name ast)
  (libraries core)
  (preprocess
   (pps ppx_sexp_conv ppx_compare ppx_import ppx_let)))

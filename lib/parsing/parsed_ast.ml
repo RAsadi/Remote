@@ -1,9 +1,6 @@
 open Ppx_compare_lib.Builtin
 open Sexplib.Std
-open SharedAst
-
-type literal = U32 of int | Bool of bool [@@deriving sexp, compare, equal]
-type identifier = string [@@deriving sexp, compare, equal]
+open Ast.Ast_types
 
 type expr =
   | Literal of Span.t * literal
