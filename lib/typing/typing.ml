@@ -22,7 +22,7 @@ let lookup_var (ctx : ctx) id : (_type * mutability) Or_error.t =
       match Map.find ctx.var_map id with
       | None ->
           Or_error.error_string
-            ("cannot assign to " ^ id ^ " without first declaring")
+            ("cannot lookup " ^ id ^ " without first declaring")
       | Some a -> Ok a)
   | Some a -> Ok a
 

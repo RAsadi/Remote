@@ -88,5 +88,18 @@ rule token = parse
   (* Other *)
   | whitespace { token lexbuf }
   | newline { incr_linenum lexbuf; token lexbuf }
+  | "//" { single_line_comment lexbuf }
+  | "/*" { multi_line_comment lexbuf }
   | eof { Eof }
   | _ { raise (Failure ("Character not allowed in source text: '" ^ Lexing.lexeme lexbuf ^ "'")) }
+
+and single_line_comment = parse
+  | newline { incr_linenum lexbuf; token lexbuf }
+  | eof { Eof }
+  | _ { single_line_comment lexbuf }
+
+and multi_line_comment = parse
+  | "*/" { token lexbuf }
+  | newline { incr_linenum lexbuf; multi_line_comment lexbuf }
+  | eof { raise (Failure ("EOF in multi line comment")) }
+  | _ { multi_line_comment lexbuf }
