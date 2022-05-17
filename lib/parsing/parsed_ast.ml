@@ -48,5 +48,10 @@ type fn = {
 }
 [@@deriving sexp, compare, equal]
 
-type top_level_element = Fn of fn [@@deriving sexp, compare, equal]
+type _struct = Span.t * identifier * typed_var list
+[@@deriving sexp, compare, equal]
+
+type top_level_element = Fn of fn | Struct of _struct
+[@@deriving sexp, compare, equal]
+
 type translation_unit = top_level_element list [@@deriving sexp, compare, equal]

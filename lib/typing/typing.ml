@@ -203,6 +203,7 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) : ctx Or_error.t
               in
               Ok { var_map; curr_scope; fn_map = ctx.fn_map }))
   | Assignment (_, id, expr) ->
+      (* The LHS of all assignments must either be an ID, or have a pointer type *)
       let%bind _type, _ = type_expr ctx expr in
       let%bind expected, mut = lookup_var ctx id in
       if equal__type _type expected && equal_mutability mut Mut then Ok ctx
@@ -226,10 +227,15 @@ let get_fn_sig fn_map (fn : Parsed_ast.fn) =
   Map.set fn_map ~key:fn.id ~data:{ ret = fn._type; arg_types }
 
 let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
+  (* functions we get from the stdlib *)
+  let init_fn_map =
+    Map.of_alist_exn
+      (module String)
+      [ ("__malloc", { ret = U32; arg_types = [ U32 ] }) ]
+  in
   let fn_map : fn_mapping =
-    List.fold translation_unit
-      ~init:(Map.empty (module String))
-      ~f:(fun acc arg -> match arg with Fn arg -> get_fn_sig acc arg)
+    List.fold translation_unit ~init:init_fn_map ~f:(fun acc arg ->
+        match arg with Fn arg -> get_fn_sig acc arg)
   in
   let%map _ =
     List.map translation_unit ~f:(fun tl ->

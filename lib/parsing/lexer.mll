@@ -38,6 +38,8 @@ rule token = parse
   | "in" { In }
   | "sizeof" { Sizeof }
 
+  | "struct" { Struct }
+
   | "u32" { U32 }
   | "bool" { Bool }
 

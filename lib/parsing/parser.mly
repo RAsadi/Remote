@@ -22,6 +22,7 @@
 %token Sizeof
 %token U32
 %token Bool
+%token Struct
 
 // Punc
 %token LBrace
@@ -74,14 +75,18 @@ let translation_unit := ~ = list(top_level_element); Eof; <>
 
 let top_level_element :=
   | ~ = fn; <Fn>
+  | ~ = _struct; <Struct>
 
-let fn := 
-  | Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt;
+let fn := Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt;
     { {span=($startpos, $endpos); id=id; args=args; _type=(match sg with Some sg -> sg | None -> Void); body=body } }
+
+let _struct := Struct; id = Iden; LBrace; types = separated_list(Comma, type_binding); RBrace;
+  { (($startpos, $endpos), id, types) }
 
 let type_name ==
   | U32; { U32 }
   | Bool; { Bool }
+  | ~ = Iden; <Identifier>
 
 let type_annotation == Colon; ~ = type_name; <>
 
