@@ -31,7 +31,9 @@ let compile_file filename =
   let open Result in
   let instrs =
     match
-      parse_file filename >>= type_translation_unit >>= Code_gen.gen_translation_unit
+      parse_file filename >>= type_translation_unit
+      >>= Analysis.Return_check.check_translation_unit
+      >>= Code_gen.gen_translation_unit
     with
     | Ok instrs -> instrs
     | Error e ->

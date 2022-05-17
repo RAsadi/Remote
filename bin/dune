@@ -1,4 +1,4 @@
 (executable
  (public_name remote)
  (name main)
- (libraries compile ast backend parsing typing))
+ (libraries compile ast backend parsing typing analysis))
