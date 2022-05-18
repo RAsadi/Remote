@@ -40,7 +40,7 @@ let get_expr_type (expr : expr) =
 
 type stmt =
   | Declaration of declaration
-  | Assignment of Span.t * identifier * expr
+  | Assignment of Span.t * expr * expr
   | Expr of Span.t * expr
   | Block of Span.t * stmt list
   | If of Span.t * expr * stmt * stmt option

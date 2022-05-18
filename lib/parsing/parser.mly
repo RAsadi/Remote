@@ -130,7 +130,7 @@ let declaration_stmt :=
   | Let; mut = option(Mut); id = Iden; annotation = option(type_annotation); Semi;
     { Declaration {span=($startpos, $endpos); mut=(match mut with Some _ -> Mut | None -> Const); id=id; type_annotation=annotation; defn=None} }
 
-let assignment_stmt := id = Iden; Assign; e = expr; Semi; { Assignment (($startpos, $endpos), id, e) }
+let assignment_stmt := e1 = expr; Assign; e2 = expr; Semi; { Assignment (($startpos, $endpos), e1, e2) }
 
 let selection_stmt :=
   | If; LParen; e = expr; RParen; body = compound_stmt; { If (($startpos, $endpos), e, body, None) }

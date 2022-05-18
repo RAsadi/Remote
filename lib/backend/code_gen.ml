@@ -124,12 +124,16 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
       [ Instr.Sub (Real X7, Real Sp, Const 16) ]
       @ push_instrs
       @ [ Instr.Mov (Real X0, Reg (Real X7)) ]
+
 and gen_postfix ctx _type expr op =
   let%map ex = gen_expr ctx expr in
-  ex @ match op with
-  | Deref ->  [ Instr.Raw ("ldr x0, [x0]") ]
+  ex
+  @
+  match op with
+  | Deref -> [ Instr.Raw "ldr x0, [x0]" ]
   | Incr -> [ Instr.Raw "add x0, x0, #1" ]
   | Decr -> [ Instr.Raw "sub x0, x0, #1" ]
+
 and gen_unary ctx op expr =
   let%bind ex = gen_expr ctx expr in
   match op with
@@ -328,12 +332,25 @@ and gen_while ctx curr_local_vars cond body =
     @ body_instrs
     @ [ Instr.B start_label; Instr.Label end_label ] )
 
-and gen_assignment ctx curr_local_vars id expr =
-  let%bind offset = lookup_var ctx id in
-  let%map expr = gen_expr ctx expr in
-  ( ctx,
-    curr_local_vars,
-    expr @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
+and gen_assignment ctx curr_local_vars lhs expr =
+  (* Current, lhs is either a pointer or a var; TODO we need special stuff for structs *)
+  match lhs with
+  | Var (_, _, id) ->
+      let%bind offset = lookup_var ctx id in
+      let%map expr = gen_expr ctx expr in
+      ( ctx,
+        curr_local_vars,
+        expr @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
+  | PostFix (_, _, inner, Deref) ->
+      let%bind inner_instrs = gen_expr ctx inner in
+      let%map rhs_instrs = gen_expr ctx expr in
+      ( ctx,
+        curr_local_vars,
+        inner_instrs @ [ Instr.Push (Real X0) ] @ rhs_instrs
+        @ [ Instr.Pop (Real X1) ]
+        (* At this point, the location of the ptr is in x1 and the expr value is in x0 *)
+        @ [ Instr.Raw "str x0, [x1]" ] )
+  | _ -> Or_error.error_string "unreachable"
 
 and gen_declaration ctx curr_local_vars
     ({ span = _; mut = _; id; type_annotation; defn } : declaration) =

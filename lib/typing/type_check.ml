@@ -297,12 +297,22 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
                   },
                   Declaration { span; mut; id; type_annotation; defn = None } ))
       )
-  | Assignment (span, id, expr) ->
+  | Assignment (span, lhs, expr) ->
       (* The LHS of all assignments must either be an ID, or have a pointer type *)
       let%bind _type, typed_expr = type_expr ctx expr in
-      let%bind expected, mut = lookup_var ctx id in
-      if equal__type _type expected && equal_mutability mut Mut then
-        Ok (ctx, Assignment (span, id, typed_expr))
+      let%bind lhs_type, typed_lhs = type_expr ctx lhs in
+      (* Currently, an LHS can only be a var or a ptr *)
+      let%bind is_valid =
+        match typed_lhs with
+        | Var (_, _, id) ->
+            let%map expected, mut = lookup_var ctx id in
+            equal__type _type expected && equal_mutability mut Mut
+        | PostFix (_, _, inner_expr, Deref) -> Ok (equal__type _type lhs_type)
+        | _ ->
+            Or_error.error_string
+              "Cannot assign to something thats not a ptr or var"
+      in
+      if is_valid then Ok (ctx, Assignment (span, typed_lhs, typed_expr))
       else Or_error.error_string "Invalid assignment"
   | For _ -> Or_error.error_string "TODO"
 
