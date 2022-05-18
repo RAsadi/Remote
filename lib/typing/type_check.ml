@@ -330,7 +330,25 @@ let type_fn struct_map fn_map (fn : Parsed_ast.fn) =
     { struct_map; var_map; fn_map; curr_scope = Map.empty (module String) }
   in
   let%map _, body = type_stmt fn._type ctx fn.body in
-  { span = fn.span; id = fn.id; args = fn.args; _type = fn._type; body }
+  match body with
+  | Block (span, stmts) -> (
+      match fn._type with
+      | Void ->
+          (* For all void functions, we sneak in a fake return stmt here *)
+          let real_body =
+            Block (span, stmts @ [ Return (Span.new_span (), None) ])
+          in
+          {
+            span = fn.span;
+            id = fn.id;
+            args = fn.args;
+            _type = fn._type;
+            body = real_body;
+          }
+      | _ ->
+          { span = fn.span; id = fn.id; args = fn.args; _type = fn._type; body }
+      )
+  | _ -> raise (Failure "unreachable")
 
 let get_fn_sig fn_map (fn : Parsed_ast.fn) =
   let arg_types = List.map fn.args ~f:(fun (_, _, _type) -> _type) in

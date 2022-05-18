@@ -301,18 +301,8 @@ and gen_binary ctx e1 op e2 =
         ]
 
 (*
-  gen_stmt returns a list of instructions and the number of new variables defined
-  The number of vars is used for allocating space for local vars
+  gen_stmt returns a list of instructions and an accumulated amount of stack used for local vars
 *)
-let with_cont_break ctx continue_label break_label =
-  {
-    curr_scope = ctx.curr_scope;
-    var_map = ctx.var_map;
-    struct_mapping = ctx.struct_mapping;
-    break_label = Some break_label;
-    continue_label = Some continue_label;
-  }
-
 let rec gen_stmt (ctx : exec_context) (stack_used : int) (stmt : stmt) :
     (exec_context * int * Instr.t list) Or_error.t =
   match stmt with
@@ -355,8 +345,17 @@ let rec gen_stmt (ctx : exec_context) (stack_used : int) (stmt : stmt) :
 and gen_while ctx stack_used cond body =
   let start_label = gen_label "while_start" in
   let end_label = gen_label "while_end" in
+  let with_cont_break =
+    {
+      curr_scope = ctx.curr_scope;
+      var_map = ctx.var_map;
+      struct_mapping = ctx.struct_mapping;
+      break_label = Some start_label;
+      continue_label = Some end_label;
+    }
+  in
   let%bind _, stack_used, body_instrs =
-    gen_stmt (with_cont_break ctx start_label end_label) stack_used body
+    gen_stmt with_cont_break stack_used body
   in
   let%map cond = gen_expr ctx cond in
   ( ctx,

@@ -93,11 +93,12 @@ let fn := Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RPa
 let _struct := Struct; id = Iden; LBrace; types = separated_list(Comma, type_binding); RBrace;
   { (($startpos, $endpos), id, types) }
 
-let type_name ==
+let type_name :=
   | U32; { U32 }
   | Bool; { Bool }
   | Char; { Char }
   | ~ = Iden; <Ast.Ast_types.Struct>
+  | inner=type_name; Caret; <Ast.Ast_types.Pointer>
 
 let type_annotation == Colon; ~ = type_name; <>
 
