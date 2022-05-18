@@ -119,7 +119,8 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
             acc @ expr_instrs @ [ Instr.Push (Real X0) ])
       in
       (* Then, return the location on the stack to start reading from *)
-      [ Instr.Mov (Real X7, Reg (Real Sp)) ]
+      (* TODO i think this doesn't work for empty structs *)
+      [ Instr.Sub (Real X7, Real Sp, Const 16) ]
       @ push_instrs
       @ [ Instr.Mov (Real X0, Reg (Real X7)) ]
 
