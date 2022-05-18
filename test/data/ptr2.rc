@@ -1,0 +1,5 @@
+fn main() -> u32 {
+  let x = 16;
+  let y = &x;
+  return y^;
+}

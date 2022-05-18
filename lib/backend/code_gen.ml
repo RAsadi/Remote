@@ -24,7 +24,7 @@ let rec find_idx lst x =
 
 let get_offset_from_field ctx struct_type field_name =
   match struct_type with
-  | Identifier struct_id ->
+  | Struct struct_id ->
       let struct_info = Map.find_exn ctx.struct_mapping struct_id in
       let offset =
         find_idx (List.map struct_info ~f:(fun (id, _) -> id)) field_name
@@ -37,7 +37,8 @@ let rec get_type_size ctx _type =
   | U32 -> 1
   | Bool -> 1
   | Void -> 0
-  | Identifier id ->
+  | Pointer _ -> 1
+  | Struct id ->
       let members = Map.find_exn ctx.struct_mapping id in
       List.fold members ~init:0 ~f:(fun acc (_, member) ->
           acc + get_type_size ctx member)
@@ -67,7 +68,7 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   | Binary (_, _, e1, op, e2) -> gen_binary ctx e1 op e2
   | Var (_, _type, id) -> (
       match _type with
-      | Identifier _ ->
+      | Struct _ ->
           let%map offset = lookup_var ctx id in
           [ Instr.Raw ("sub x0, fp, #" ^ Int.to_string offset) ]
       | _ ->
@@ -95,7 +96,7 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
               Instr.Pop (Instr.Register.from_int idx))
         in
         push_instrs @ load_instrs @ [ Instr.Bl id ]
-  | PostFix _ -> Ok [] (* TODO *)
+  | PostFix (_, _type, e, op) -> gen_postfix ctx _type e op
   | FieldAccess (_, _type, lhs, field_name) ->
       let%bind struct_type =
         match lhs with
@@ -109,8 +110,8 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
       @ [ Instr.Raw ("ldr x0, [x0, #-" ^ Int.to_string field_offset ^ "]") ]
   | Initializer (_, _type, _, inits) ->
       (* Generate and push things onto the stack.
-         This is technically broken in the case of returning from a function, but thats ok.
-         Also leaks memory for a standalone initializer
+         This is technically broken in the case of returning from a function, but thats ok for now.
+         Note that stack space is only reclaimed after the function exits, which is kinda scuffed
       *)
       let%map push_instrs =
         List.fold inits ~init:(Ok []) ~f:(fun acc arg ->
@@ -119,24 +120,38 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
             acc @ expr_instrs @ [ Instr.Push (Real X0) ])
       in
       (* Then, return the location on the stack to start reading from *)
-      (* TODO i think this doesn't work for empty structs *)
+      (* TODO i think this doesn't work for empty structs, but I also don't think it matters? *)
       [ Instr.Sub (Real X7, Real Sp, Const 16) ]
       @ push_instrs
       @ [ Instr.Mov (Real X0, Reg (Real X7)) ]
-
-and gen_unary ctx op expr =
+and gen_postfix ctx _type expr op =
   let%map ex = gen_expr ctx expr in
-  ex
-  @
+  ex @ match op with
+  | Deref ->  [ Instr.Raw ("ldr x0, [x0]") ]
+  | Incr -> [ Instr.Raw "add x0, x0, #1" ]
+  | Decr -> [ Instr.Raw "sub x0, x0, #1" ]
+and gen_unary ctx op expr =
+  let%bind ex = gen_expr ctx expr in
   match op with
-  | Neg -> [ Instr.Neg (Real X0, Reg (Real X0)) ]
+  | Addr ->
+      let%bind var_id =
+        match expr with
+        | Var (_, _, id) -> Ok id
+        | _ -> Or_error.error_string "unreachable"
+      in
+      let%map offset = lookup_var ctx var_id in
+      [ Instr.Raw ("sub x0, fp, #" ^ Int.to_string offset) ]
+      (* Put the addr of the var in x0 *)
+  | Neg -> Ok (ex @ [ Instr.Neg (Real X0, Reg (Real X0)) ])
   | Bang ->
-      [
-        Instr.Cmp (Real X0, Const 0);
-        Instr.Mov (Real X0, Const 0);
-        Instr.CSet (Real X0, "eq");
-      ]
-  | Tilde -> [ Instr.Mvn (Real X0, Reg (Real X0)) ]
+      Ok
+        (ex
+        @ [
+            Instr.Cmp (Real X0, Const 0);
+            Instr.Mov (Real X0, Const 0);
+            Instr.CSet (Real X0, "eq");
+          ])
+  | Tilde -> Ok (ex @ [ Instr.Mvn (Real X0, Reg (Real X0)) ])
 
 and gen_binary ctx e1 op e2 =
   let%bind e1_instrs = gen_expr ctx e1 in

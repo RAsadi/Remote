@@ -69,7 +69,7 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
           Ok (ret, Call (span, ret, id, args))
         else Or_error.error_string "Arg types don't match"
   | Sizeof _ -> Or_error.error_string "TODO"
-  | PostFix _ -> Or_error.error_string "TODO"
+  | PostFix (span, e, op) -> type_postfix_expr ctx span e op
   | FieldAccess (span, expr, id) -> type_field_access ctx span expr id
   | Initializer (span, id, inits) -> type_initializer ctx span id inits
 
@@ -89,13 +89,13 @@ and type_initializer ctx span id inits =
     let inits_type_list, inits = List.unzip init_list in
     (* make sure all the types line up*)
     if List.equal equal__type inits_type_list struct_init_types then
-      Ok (Identifier id, Initializer (span, Identifier id, id, inits))
+      Ok (Ast_types.Struct id, Initializer (span, Struct id, id, inits))
     else Or_error.error_string "Arg types don't match"
 
 and type_field_access ctx span expr id =
   let%bind _type, expr = type_expr ctx expr in
   match _type with
-  | Identifier struct_id -> (
+  | Struct struct_id -> (
       let%bind var_list = lookup_struct ctx struct_id in
       match
         List.find var_list ~f:(fun (var_id, _) -> equal_identifier id var_id)
@@ -142,19 +142,48 @@ and type_binary_expr ctx span e1 op e2 =
 and type_unary_expr ctx span op e =
   let%bind _type, e = type_expr ctx e in
   let%map new_type =
+    match op with
+    | Addr -> (
+        match e with
+        | Var (_, t, _) -> Ok (Pointer t)
+        | _ -> Or_error.error_string "Cannot take addr of temporary")
+    | _ -> (
+        match _type with
+        | Bool -> (
+            match op with
+            | Bang -> Ok Ast_types.Bool
+            | _ -> Or_error.error_string "Cannot apply unary op to bool")
+        | U32 -> (
+            match op with
+            | Tilde -> Ok U32
+            | _ -> Or_error.error_string "Cannot apply unary op to u32")
+        | Void -> Or_error.error_string "Cannot apply unary op to void"
+        | Struct i -> (
+            match op with
+            | Addr -> Ok (Pointer (Struct i))
+            | _ -> Or_error.error_string "Cannot apply unary op to struct")
+        | Pointer _ -> Or_error.error_string "Cannot apply unary op to ptr")
+  in
+
+  (new_type, Unary (span, new_type, op, e))
+
+and type_postfix_expr ctx span e op =
+  let%bind _type, e = type_expr ctx e in
+  let%map new_type =
     match _type with
-    | Bool -> (
-        match op with
-        | Bang -> Ok Ast_types.Bool
-        | _ -> Or_error.error_string "Cannot apply unary op to bool")
+    | Bool -> Or_error.error_string "Cannot apply postfix op to bool"
     | U32 -> (
         match op with
-        | Tilde -> Ok U32
-        | _ -> Or_error.error_string "Cannot apply unary op to u32")
-    | Void -> Or_error.error_string "Cannot apply unary op to void"
-    | Identifier _ -> Or_error.error_string "Cannot apply unary op to struct"
+        | Incr | Decr -> Ok Ast_types.U32
+        | _ -> Or_error.error_string "Cannot apply postfix op to u32")
+    | Void -> Or_error.error_string "Cannot apply postfix op to void"
+    | Struct _ -> Or_error.error_string "Cannot apply postfix op to struct"
+    | Pointer s -> (
+        match op with
+        | Deref -> Ok s
+        | _ -> Or_error.error_string "Cannot apply postfix op to ptr")
   in
-  (new_type, Unary (span, new_type, op, e))
+  (new_type, PostFix (span, new_type, e, op))
 
 (* TODO we should consider returning an annotated ast here, its not needed for now tho *)
 let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :

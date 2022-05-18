@@ -37,6 +37,10 @@
 
 ////////////// Operators
 
+// Pointer
+%token Caret
+%token Ampersand
+
 // Arithmetic
 %token Minus
 %token Bang
@@ -69,6 +73,8 @@
 // Assignment
 %token Assign
 
+%type <Ast.Ast_types._type> type_name
+
 %start <Parsed_ast.translation_unit> translation_unit
 %%
 
@@ -87,7 +93,7 @@ let _struct := Struct; id = Iden; LBrace; types = separated_list(Comma, type_bin
 let type_name ==
   | U32; { U32 }
   | Bool; { Bool }
-  | ~ = Iden; <Identifier>
+  | ~ = Iden; <Ast.Ast_types.Struct>
 
 let type_annotation == Colon; ~ = type_name; <>
 
@@ -209,6 +215,7 @@ let unary_op ==
   | Minus; { Neg }
   | Bang; { Bang }
   | Tilde; { Tilde }
+  | Ampersand; { Addr }
 
 let multiplicative_op ==
   | Star; { Star }
@@ -235,3 +242,4 @@ let shift_op ==
 let postfix_op ==
   | Incr; { Incr }
   | Decr; { Decr }
+  | Caret; { Deref }

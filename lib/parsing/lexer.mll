@@ -54,6 +54,10 @@ rule token = parse
   | ',' { Comma }
 
   (* Operators *)
+  | '&' { Ampersand }
+  | '^' { Caret }
+  | "." { Dot }
+
   | '-' { Minus }
   | '!' { Bang }
   | '~' { Tilde }
@@ -62,7 +66,6 @@ rule token = parse
   | '+' { Plus }
   | "++" { Incr }
   | "--" { Decr }
-  | "." { Dot }
 
   | "<<" { LShift }
   | ">>" { RShift }
