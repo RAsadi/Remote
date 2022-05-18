@@ -1,0 +1,9 @@
+fn oopa(x: u32^) {
+  x^ = 4;
+}
+
+fn main() -> u32 {
+  let y = 10;
+
+  return y;
+}

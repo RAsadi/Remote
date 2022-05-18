@@ -20,9 +20,12 @@
 %token Mut
 %token In
 %token Sizeof
+%token Struct
+
+// Types
 %token U32
 %token Bool
-%token Struct
+%token Char
 
 // Punc
 %token LBrace
@@ -93,6 +96,7 @@ let _struct := Struct; id = Iden; LBrace; types = separated_list(Comma, type_bin
 let type_name ==
   | U32; { U32 }
   | Bool; { Bool }
+  | Char; { Char }
   | ~ = Iden; <Ast.Ast_types.Struct>
 
 let type_annotation == Colon; ~ = type_name; <>

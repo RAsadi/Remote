@@ -42,6 +42,7 @@ rule token = parse
 
   | "u32" { U32 }
   | "bool" { Bool }
+  | "char" { Char }
 
   (* Punc *)
   | '{' { LBrace }

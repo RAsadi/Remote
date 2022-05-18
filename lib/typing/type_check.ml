@@ -162,6 +162,7 @@ and type_unary_expr ctx span op e =
             match op with
             | Addr -> Ok (Pointer (Struct i))
             | _ -> Or_error.error_string "Cannot apply unary op to struct")
+        | Char -> Or_error.error_string "Cannot apply unary op to char"
         | Pointer _ -> Or_error.error_string "Cannot apply unary op to ptr")
   in
 
@@ -171,6 +172,7 @@ and type_postfix_expr ctx span e op =
   let%bind _type, e = type_expr ctx e in
   let%map new_type =
     match _type with
+    | Char -> Or_error.error_string "Cannot apply postfix op to char"
     | Bool -> Or_error.error_string "Cannot apply postfix op to bool"
     | U32 -> (
         match op with

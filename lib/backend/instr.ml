@@ -1,44 +1,40 @@
 module Register : sig
-  type real = X0 | X1 | X2 | X3 | X4 | X5 | X6 | X7 | X16 | X30 | Fp | Sp
-  type t = Real of real
+  type t = X0 | X1 | X2 | X3 | X4 | X5 | X6 | X7 | X16 | X30 | Fp | Sp
 
   val to_string : t -> string
   val from_int : int -> t
 end = struct
-  type real = X0 | X1 | X2 | X3 | X4 | X5 | X6 | X7 | X16 | X30 | Fp | Sp
-  type t = Real of real
+  type t = X0 | X1 | X2 | X3 | X4 | X5 | X6 | X7 | X16 | X30 | Fp | Sp
 
   let to_string reg =
     match reg with
-    | Real r -> (
-        match r with
-        | X0 -> "x0"
-        | X1 -> "x1"
-        | X2 -> "x2"
-        | X3 -> "x3"
-        | X4 -> "x4"
-        | X5 -> "x5"
-        | X6 -> "x6"
-        | X7 -> "x7"
-        | X16 -> "x16"
-        | X30 -> "x30"
-        | Fp -> "fp"
-        | Sp -> "sp")
+    | X0 -> "x0"
+    | X1 -> "x1"
+    | X2 -> "x2"
+    | X3 -> "x3"
+    | X4 -> "x4"
+    | X5 -> "x5"
+    | X6 -> "x6"
+    | X7 -> "x7"
+    | X16 -> "x16"
+    | X30 -> "x30"
+    | Fp -> "fp"
+    | Sp -> "sp"
 
   let from_int i =
     assert (i < 30);
     match i with
-    | 0 -> Real X0
-    | 1 -> Real X1
-    | 2 -> Real X2
-    | 3 -> Real X3
-    | 4 -> Real X4
-    | 5 -> Real X5
-    | 6 -> Real X6
-    | 7 -> Real X7
-    | 29 -> Real Fp
-    | 30 -> Real X30
-    | _ -> Real Sp (* lol *)
+    | 0 -> X0
+    | 1 -> X1
+    | 2 -> X2
+    | 3 -> X3
+    | 4 -> X4
+    | 5 -> X5
+    | 6 -> X6
+    | 7 -> X7
+    | 29 -> Fp
+    | 30 -> X30
+    | _ -> Sp (* lol *)
 end
 
 module Operand : sig
