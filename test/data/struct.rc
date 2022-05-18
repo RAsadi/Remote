@@ -1,13 +1,13 @@
 struct cake {
   thiccness: u32,
-  taste: u32,
+  taste: u32
 }
 
 fn main() -> u32 {
   let c = cake{
-    thiccness = 1 + 1,
-    width = 10,
+    1 + 1,
+    10
   };
   
-  return c.width + c.thiccness;
+  return c.taste;
 }

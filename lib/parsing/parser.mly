@@ -33,6 +33,7 @@
 %token Colon
 %token Arrow
 %token Comma
+%token Dot
 
 ////////////// Operators
 
@@ -126,8 +127,8 @@ let declaration_stmt :=
 let assignment_stmt := id = Iden; Assign; e = expr; Semi; { Assignment (($startpos, $endpos), id, e) }
 
 let selection_stmt :=
-  | If; e = expr; body = compound_stmt; { If (($startpos, $endpos), e, body, None) }
-  | If; e = expr; body = compound_stmt; Else; els = else_stmt; { If (($startpos, $endpos), e, body, Some els) }
+  | If; LParen; e = expr; RParen; body = compound_stmt; { If (($startpos, $endpos), e, body, None) }
+  | If; LParen; e = expr; RParen; body = compound_stmt; Else; els = else_stmt; { If (($startpos, $endpos), e, body, Some els) }
 
 let else_stmt :=
   | compound_stmt
@@ -137,9 +138,9 @@ let iteration_stmt :=
   | for_stmt
   | while_stmt
 
-let for_stmt := For; id = Iden; In; cond = expr; body = compound_stmt; { For (($startpos, $endpos), id, cond, body) }
+let for_stmt := For; LParen; id = Iden; In; cond = expr; RParen; body = compound_stmt; { For (($startpos, $endpos), id, cond, body) }
 
-let while_stmt := While; cond = expr; body = compound_stmt;
+let while_stmt := While; LParen; cond = expr; RParen; body = compound_stmt;
   { While (($startpos, $endpos), cond, body) }
 
 
@@ -150,10 +151,12 @@ let primary_expr :=
   | lit = Literal; { Literal (($startpos, $endpos), lit) }
   | LParen; ~ = expr; RParen; <>
   | id = Iden; LParen; args = separated_list(Comma, expr); RParen; { Call (($startpos, $endpos), id, args) }
+  | id = Iden; LBrace; inits = separated_list(Comma, expr); RBrace; { Initializer (($startpos, $endpos), id, inits) }
 
 let postfix_expr :=
   | primary_expr
   | expr = postfix_expr; op = postfix_op; { PostFix (($startpos, $endpos), expr, op) }
+  | expr = postfix_expr; Dot; id = Iden; { FieldAccess (($startpos, $endpos), expr, id) }
 
 let unary_expr :=
   | postfix_expr

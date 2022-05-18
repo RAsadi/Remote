@@ -1,19 +1,50 @@
-open Parsing.Parsed_ast
+open Typing.Typed_ast
+open Ast.Ast_types
 open Base
 open Base.Result.Let_syntax
 
 type variable_mapping = (string, int, String.comparator_witness) Map.t
+type struct_type_info = (string * _type) list
+
+type struct_mapping =
+  (string, struct_type_info, String.comparator_witness) Map.t
 
 type exec_context = {
   var_map : variable_mapping;
   curr_scope : variable_mapping;
+  struct_mapping : struct_mapping;
   continue_label : string option;
   break_label : string option;
 }
 
-let label_count = ref 0
+let rec find_idx lst x =
+  match lst with
+  | [] -> raise (Failure "HHMG")
+  | h :: t -> if String.equal x h then 0 else 1 + find_idx t x
+
+let get_offset_from_field ctx struct_type field_name =
+  match struct_type with
+  | Identifier struct_id ->
+      let struct_info = Map.find_exn ctx.struct_mapping struct_id in
+      let offset =
+        find_idx (List.map struct_info ~f:(fun (id, _) -> id)) field_name
+      in
+      offset * 16
+  | _ -> raise (Failure "unrentarst")
+
+let rec get_type_size ctx _type =
+  match _type with
+  | U32 -> 1
+  | Bool -> 1
+  | Void -> 0
+  | Identifier id ->
+      let members = Map.find_exn ctx.struct_mapping id in
+      List.fold members ~init:0 ~f:(fun acc (_, member) ->
+          acc + get_type_size ctx member)
+
 let push reg_list = List.map reg_list ~f:(fun reg -> Instr.Push reg)
 let pop reg_list = List.map reg_list ~f:(fun reg -> Instr.Pop reg)
+let label_count = ref 0
 
 (* Returns a new, unique label *)
 let gen_label label_name =
@@ -28,17 +59,22 @@ let lookup_var (ctx : exec_context) id : int Or_error.t =
 
 let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   match expr with
-  | Literal (_, l) -> (
+  | Literal (_, _, l) -> (
       match l with
       | U32 i -> Ok [ Instr.Mov (Real X0, Const i) ]
       | Bool b -> Ok [ Instr.Mov (Real X0, Const (Bool.to_int b)) ])
-  | Unary (_, op, e) -> gen_unary ctx op e
-  | Binary (_, e1, op, e2) -> gen_binary ctx e1 op e2
-  | Var (_, id) ->
-      let%map offset = lookup_var ctx id in
-      [ Instr.Raw ("ldr x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
+  | Unary (_, _, op, e) -> gen_unary ctx op e
+  | Binary (_, _, e1, op, e2) -> gen_binary ctx e1 op e2
+  | Var (_, _type, id) -> (
+      match _type with
+      | Identifier _ ->
+          let%map offset = lookup_var ctx id in
+          [ Instr.Raw ("sub x0, fp, #" ^ Int.to_string offset) ]
+      | _ ->
+          let%map offset = lookup_var ctx id in
+          [ Instr.Raw ("ldr x0, [fp, #-" ^ Int.to_string offset ^ "]") ])
   | Sizeof _ -> Ok []
-  | Call (_, id, args) ->
+  | Call (_, _, id, args) ->
       (*
           TODO In the future, we should adhere strictly to arm64 ABI.
           For now, we will pass in args through x0-x7; and fail otherwise
@@ -59,7 +95,33 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
               Instr.Pop (Instr.Register.from_int idx))
         in
         push_instrs @ load_instrs @ [ Instr.Bl id ]
-  | PostFix _ -> Ok []
+  | PostFix _ -> Ok [] (* TODO *)
+  | FieldAccess (_, _type, lhs, field_name) ->
+      let%bind struct_type =
+        match lhs with
+        | Var (_, t, _) -> Ok t
+        | _ -> Or_error.error_string "TODO cannot handle non var lhs"
+      in
+      let%map lhs_instrs = gen_expr ctx lhs in
+      (* Based on codegen for var, x0 should now hold the address of var *)
+      let field_offset = get_offset_from_field ctx struct_type field_name in
+      lhs_instrs
+      @ [ Instr.Raw ("ldr x0, [x0, #-" ^ Int.to_string field_offset ^ "]") ]
+  | Initializer (_, _type, _, inits) ->
+      (* Generate and push things onto the stack.
+         This is technically broken in the case of returning from a function, but thats ok.
+         Also leaks memory for a standalone initializer
+      *)
+      let%map push_instrs =
+        List.fold inits ~init:(Ok []) ~f:(fun acc arg ->
+            let%bind acc = acc in
+            let%map expr_instrs = gen_expr ctx arg in
+            acc @ expr_instrs @ [ Instr.Push (Real X0) ])
+      in
+      (* Then, return the location on the stack to start reading from *)
+      [ Instr.Mov (Real X7, Reg (Real Sp)) ]
+      @ push_instrs
+      @ [ Instr.Mov (Real X0, Reg (Real X7)) ]
 
 and gen_unary ctx op expr =
   let%map ex = gen_expr ctx expr in
@@ -191,6 +253,7 @@ let with_cont_break ctx continue_label break_label =
   {
     curr_scope = ctx.curr_scope;
     var_map = ctx.var_map;
+    struct_mapping = ctx.struct_mapping;
     break_label = Some break_label;
     continue_label = Some continue_label;
   }
@@ -205,6 +268,7 @@ let rec gen_stmt (ctx : exec_context) (curr_local_vars : int) (stmt : stmt) :
              ( {
                  var_map = ctx.var_map;
                  curr_scope = Map.empty (module String);
+                 struct_mapping = ctx.struct_mapping;
                  continue_label = ctx.continue_label;
                  break_label = ctx.break_label;
                },
@@ -256,7 +320,15 @@ and gen_assignment ctx curr_local_vars id expr =
     expr @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ] )
 
 and gen_declaration ctx curr_local_vars
-    ({ span = _; mut = _; id; type_annotation = _; defn } : declaration) =
+    ({ span = _; mut = _; id; type_annotation; defn } : declaration) =
+  let decl_type _type_annotation defn : _type =
+    match _type_annotation with
+    | Some t -> t
+    | None -> (
+        match defn with
+        | Some defn -> get_expr_type defn
+        | None -> raise (Failure "unreachable"))
+  in
   let offset = (curr_local_vars + 1) * 16 in
   let var_map = Map.set ctx.var_map ~key:id ~data:offset in
   let curr_scope = Map.set ctx.curr_scope ~key:id ~data:offset in
@@ -264,17 +336,38 @@ and gen_declaration ctx curr_local_vars
     match defn with
     | Some e ->
         let%map assignment_expr = gen_expr ctx e in
-        assignment_expr
-        @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
+        let _type = get_expr_type e in
+        let type_size = get_type_size ctx _type in
+        if type_size = 1 then
+          assignment_expr
+          @ [ Instr.Raw ("str x0, [fp, #-" ^ Int.to_string offset ^ "]") ]
+        else
+          assignment_expr
+          @ List.fold (List.range 0 type_size) ~init:[] ~f:(fun acc idx ->
+                (* Note that x0 stores the area in the stack where we should begin looking *)
+                acc
+                @ [
+                    Instr.Raw
+                      ("ldr x1, [x0, #-" ^ Int.to_string (idx * 16) ^ "]");
+                  ]
+                @ (* At this point, x1 holds the current member to store. *)
+                [
+                  Instr.Raw
+                    ("str x1, [fp, #-"
+                    ^ Int.to_string (offset + (idx * 16))
+                    ^ "]");
+                ])
+        (* At this point, we have stored the value where it needs to go, and we can move on*)
     | None -> Ok []
   in
   ( {
       var_map;
       curr_scope;
+      struct_mapping = ctx.struct_mapping;
       continue_label = ctx.continue_label;
       break_label = ctx.break_label;
     },
-    curr_local_vars + 1,
+    curr_local_vars + get_type_size ctx (decl_type type_annotation defn),
     instrs )
 
 and gen_return ctx curr_local_vars e =
@@ -368,10 +461,12 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
       Svc (Const 0);
     ]
   in
+  let struct_mapping = Typing.Type_check.get_struct_map trans in
   let empty_ctx =
     {
       var_map = Map.empty (module String);
       curr_scope = Map.empty (module String);
+      struct_mapping;
       continue_label = None;
       break_label = None;
     }
@@ -382,6 +477,7 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
         match tl with
         | Fn fn ->
             let%map fn_res = gen_fn empty_ctx fn in
-            acc @ fn_res)
+            acc @ fn_res
+        | Struct _ -> Ok [])
   in
   premable @ fn_instrs

@@ -10,6 +10,8 @@ type expr =
   | Var of Span.t * identifier
   | Call of Span.t * identifier * expr list
   | PostFix of Span.t * expr * postfix_op
+  | FieldAccess of Span.t * expr * identifier
+  | Initializer of Span.t * identifier * expr list
 
 and unary_expr = Span.t * unary_op * expr
 

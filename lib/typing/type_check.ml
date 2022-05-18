@@ -8,10 +8,14 @@ open Typed_ast
 type var_mapping = (string, _type * mutability, String.comparator_witness) Map.t
 type fn_type_info = { ret : _type; arg_types : _type list }
 type fn_mapping = (string, fn_type_info, String.comparator_witness) Map.t
-type type_mapping = var_mapping * fn_mapping
+type struct_type_info = (identifier * _type) list
+
+type struct_mapping =
+  (string, struct_type_info, String.comparator_witness) Map.t
 
 type ctx = {
   var_map : var_mapping;
+  struct_map : struct_mapping;
   fn_map : fn_mapping;
   curr_scope : var_mapping;
 }
@@ -29,6 +33,11 @@ let lookup_var (ctx : ctx) id : (_type * mutability) Or_error.t =
 let lookup_fn (ctx : ctx) id : fn_type_info Or_error.t =
   match Map.find ctx.fn_map id with
   | None -> Or_error.error_string ("Couldn't find function " ^ id)
+  | Some a -> Ok a
+
+let lookup_struct ctx id =
+  match Map.find ctx.struct_map id with
+  | None -> Or_error.error_string ("Couldn't find struct " ^ id)
   | Some a -> Ok a
 
 let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
@@ -61,6 +70,40 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
         else Or_error.error_string "Arg types don't match"
   | Sizeof _ -> Or_error.error_string "TODO"
   | PostFix _ -> Or_error.error_string "TODO"
+  | FieldAccess (span, expr, id) -> type_field_access ctx span expr id
+  | Initializer (span, id, inits) -> type_initializer ctx span id inits
+
+and type_initializer ctx span id inits =
+  let%bind struct_init_types = lookup_struct ctx id in
+  (* First, check arg len *)
+  if List.length inits <> List.length struct_init_types then
+    Or_error.error_string
+      ("Trying to initialize " ^ id ^ " with incorrect number of args ")
+  else
+    let%bind init_list =
+      List.map inits ~f:(fun x -> type_expr ctx x) |> Result.all
+    in
+    let struct_init_types =
+      List.map struct_init_types ~f:(fun (_, _type) -> _type)
+    in
+    let inits_type_list, inits = List.unzip init_list in
+    (* make sure all the types line up*)
+    if List.equal equal__type inits_type_list struct_init_types then
+      Ok (Identifier id, Initializer (span, Identifier id, id, inits))
+    else Or_error.error_string "Arg types don't match"
+
+and type_field_access ctx span expr id =
+  let%bind _type, expr = type_expr ctx expr in
+  match _type with
+  | Identifier struct_id -> (
+      let%bind var_list = lookup_struct ctx struct_id in
+      match
+        List.find var_list ~f:(fun (var_id, _) -> equal_identifier id var_id)
+      with
+      | None -> Or_error.error_string "Could not find matching member in struct"
+      | Some (_, var_type) ->
+          Ok (var_type, FieldAccess (span, var_type, expr, id)))
+  | _ -> Or_error.error_string "Cannot access field on non struct type"
 
 and type_binary_expr ctx span e1 op e2 =
   let%bind _type1, e1 = type_expr ctx e1 and _type2, e2 = type_expr ctx e2 in
@@ -103,63 +146,71 @@ and type_unary_expr ctx span op e =
     | Bool -> (
         match op with
         | Bang -> Ok Ast_types.Bool
-        | _ -> Or_error.error_string "Cannot apply op to bool")
+        | _ -> Or_error.error_string "Cannot apply unary op to bool")
     | U32 -> (
         match op with
         | Tilde -> Ok U32
-        | _ -> Or_error.error_string "Cannot apply op to u32")
+        | _ -> Or_error.error_string "Cannot apply unary op to u32")
     | Void -> Or_error.error_string "Cannot apply unary op to void"
+    | Identifier _ -> Or_error.error_string "Cannot apply unary op to struct"
   in
   (new_type, Unary (span, new_type, op, e))
 
 (* TODO we should consider returning an annotated ast here, its not needed for now tho *)
-let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) : ctx Or_error.t
-    =
+let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
+    (ctx * stmt) Or_error.t =
   let type_stmt = type_stmt ret_type in
   match stmt with
-  | Block (_, stmts) ->
-      List.fold stmts
-        ~init:
-          (Ok
-             {
-               fn_map = ctx.fn_map;
-               var_map = ctx.var_map;
-               curr_scope = Map.empty (module String);
-             })
-        ~f:(fun acc stmt ->
-          let%bind acc = acc in
-          type_stmt acc stmt)
-  | Expr (_, e) ->
+  | Block (span, stmts) ->
+      let%map new_ctx, stmt_list =
+        List.fold stmts
+          ~init:
+            (Ok
+               ( {
+                   fn_map = ctx.fn_map;
+                   var_map = ctx.var_map;
+                   struct_map = ctx.struct_map;
+                   curr_scope = Map.empty (module String);
+                 },
+                 [] ))
+          ~f:(fun acc stmt ->
+            let%bind ctx, rest = acc in
+            let%map new_ctx, new_stmt = type_stmt ctx stmt in
+            (new_ctx, rest @ [ new_stmt ]))
+      in
+      (new_ctx, Block (span, stmt_list))
+  | Expr (span, e) ->
       (* TODO there must be a better way*)
-      let%map _ = type_expr ctx e in
-      ctx
-  | If (_, cond, if_true, if_false) -> (
+      let%map _, e = type_expr ctx e in
+      (ctx, Expr (span, e))
+  | If (span, cond, if_true, if_false) -> (
       (* TODO there must be a better way*)
-      let%bind _ = type_expr ctx cond in
+      let%bind _, typed_cond = type_expr ctx cond in
       (* TODO check that the type for expr is bool, or convertable to bool *)
-      let%bind _ = type_stmt ctx if_true in
+      let%bind _, typed_if_true = type_stmt ctx if_true in
       match if_false with
       | Some if_false ->
-          let%map _ = type_stmt ctx if_false in
-          ctx
-      | None -> Ok ctx)
-  | While (_, cond, body) ->
-      let%bind _ = type_expr ctx cond in
-      let%map _ = type_stmt ctx body in
-      ctx
-  | Return (_, e) -> (
+          let%map _, typed_if_false = type_stmt ctx if_false in
+          (ctx, If (span, typed_cond, typed_if_true, Some typed_if_false))
+      | None -> Ok (ctx, If (span, typed_cond, typed_if_true, None)))
+  | While (span, cond, body) ->
+      let%bind _, typed_cond = type_expr ctx cond in
+      let%map _, typed_body = type_stmt ctx body in
+      (ctx, While (span, typed_cond, typed_body))
+  | Return (span, e) -> (
       match e with
       | None -> (
           match ret_type with
-          | Void -> Ok ctx
+          | Void -> Ok (ctx, Return (span, None))
           | _ -> Or_error.error_string "Invalid return from void function")
       | Some e ->
-          let%bind _type, _ = type_expr ctx e in
-          if equal__type _type ret_type then Ok ctx
+          let%bind _type, typed_e = type_expr ctx e in
+          if equal__type _type ret_type then
+            Ok (ctx, Return (span, Some typed_e))
           else Or_error.error_string "Invalid return type")
-  | Break _ -> Ok ctx
-  | Continue _ -> Ok ctx
-  | Declaration { span = _; mut; id; type_annotation; defn } -> (
+  | Break span -> Ok (ctx, Break span)
+  | Continue span -> Ok (ctx, Continue span)
+  | Declaration { span; mut; id; type_annotation; defn } -> (
       let%bind _ =
         match Map.find ctx.curr_scope id with
         | Some _ ->
@@ -169,7 +220,7 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) : ctx Or_error.t
       match defn with
       | Some defn ->
           (* If we have a defn, we should make sure the expr matches it *)
-          let%bind expr_type, _ = type_expr ctx defn in
+          let%bind expr_type, typed_defn = type_expr ctx defn in
           let var_map = Map.set ctx.var_map ~key:id ~data:(expr_type, mut) in
           let curr_scope =
             Map.set ctx.curr_scope ~key:id ~data:(expr_type, mut)
@@ -183,7 +234,14 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) : ctx Or_error.t
                   Or_error.error_string
                     "Type annotation doesn't match definition"
           in
-          { var_map; curr_scope; fn_map = ctx.fn_map }
+          ( {
+              var_map;
+              curr_scope;
+              fn_map = ctx.fn_map;
+              struct_map = ctx.struct_map;
+            },
+            Declaration
+              { span; mut; id; type_annotation; defn = Some typed_defn } )
       | None -> (
           (* If we don't have any definition, we need a type annotation*)
           let%bind _ =
@@ -201,16 +259,25 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) : ctx Or_error.t
               let curr_scope =
                 Map.set ctx.curr_scope ~key:id ~data:(annotation, mut)
               in
-              Ok { var_map; curr_scope; fn_map = ctx.fn_map }))
-  | Assignment (_, id, expr) ->
+              Ok
+                ( {
+                    var_map;
+                    curr_scope;
+                    fn_map = ctx.fn_map;
+                    struct_map = ctx.struct_map;
+                  },
+                  Declaration { span; mut; id; type_annotation; defn = None } ))
+      )
+  | Assignment (span, id, expr) ->
       (* The LHS of all assignments must either be an ID, or have a pointer type *)
-      let%bind _type, _ = type_expr ctx expr in
+      let%bind _type, typed_expr = type_expr ctx expr in
       let%bind expected, mut = lookup_var ctx id in
-      if equal__type _type expected && equal_mutability mut Mut then Ok ctx
+      if equal__type _type expected && equal_mutability mut Mut then
+        Ok (ctx, Assignment (span, id, typed_expr))
       else Or_error.error_string "Invalid assignment"
   | For _ -> Or_error.error_string "TODO"
 
-let type_fn fn_map (fn : Parsed_ast.fn) =
+let type_fn struct_map fn_map (fn : Parsed_ast.fn) =
   let var_map =
     List.fold fn.args
       ~init:(Map.empty (module String))
@@ -218,13 +285,25 @@ let type_fn fn_map (fn : Parsed_ast.fn) =
         let _, id, _type = arg in
         Map.set acc ~key:id ~data:(_type, Const))
   in
-  let ctx = { var_map; fn_map; curr_scope = Map.empty (module String) } in
-  let%map _ = type_stmt fn._type ctx fn.body in
-  ()
+  let ctx =
+    { struct_map; var_map; fn_map; curr_scope = Map.empty (module String) }
+  in
+  let%map _, body = type_stmt fn._type ctx fn.body in
+  { span = fn.span; id = fn.id; args = fn.args; _type = fn._type; body }
 
 let get_fn_sig fn_map (fn : Parsed_ast.fn) =
   let arg_types = List.map fn.args ~f:(fun (_, _, _type) -> _type) in
   Map.set fn_map ~key:fn.id ~data:{ ret = fn._type; arg_types }
+
+let add_struct struct_map ((_, id, var_list) : Parsed_ast._struct) =
+  let var_list = List.map var_list ~f:(fun (_, id, _type) -> (id, _type)) in
+  Map.set struct_map ~key:id ~data:var_list
+
+let get_struct_map translation_unit =
+  List.fold translation_unit
+    ~init:(Map.empty (module String))
+    ~f:(fun acc arg ->
+      match arg with Fn _ -> acc | Struct s -> add_struct acc s)
 
 let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
   (* functions we get from the stdlib *)
@@ -235,11 +314,21 @@ let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
   in
   let fn_map : fn_mapping =
     List.fold translation_unit ~init:init_fn_map ~f:(fun acc arg ->
-        match arg with Fn arg -> get_fn_sig acc arg)
+        match arg with Fn arg -> get_fn_sig acc arg | Struct _ -> acc)
   in
-  let%map _ =
+  let struct_map =
+    List.fold translation_unit
+      ~init:(Map.empty (module String))
+      ~f:(fun acc arg ->
+        match arg with Fn _ -> acc | Struct s -> add_struct acc s)
+  in
+  let%map new_trans =
     List.map translation_unit ~f:(fun tl ->
-        match tl with Fn fn -> type_fn fn_map fn)
+        match tl with
+        | Fn fn ->
+            let%map fn = type_fn struct_map fn_map fn in
+            Fn fn
+        | Struct s -> Ok (Struct s))
     |> Result.all
   in
-  translation_unit
+  new_trans

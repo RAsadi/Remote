@@ -34,4 +34,4 @@ type binary_op =
   | Gte
 [@@deriving sexp, compare, equal]
 
-type postfix_op = Incr | Decr [@@deriving sexp, compare, equal]
+type postfix_op = Incr | Decr | Dot [@@deriving sexp, compare, equal]

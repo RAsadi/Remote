@@ -1,4 +1,4 @@
-open Parsing.Parsed_ast
+open Typing.Typed_ast
 open Ast.Ast_types
 open Base
 open Base.Result.Let_syntax
@@ -33,6 +33,6 @@ let check_translation_unit trans : translation_unit Or_error.t =
   let%map _ =
     List.fold trans ~init:(Ok ()) ~f:(fun acc tl ->
         let%bind _ = acc in
-        match tl with Fn fn -> check_fn fn)
+        match tl with Fn fn -> check_fn fn | Struct _ -> Ok ())
   in
   trans

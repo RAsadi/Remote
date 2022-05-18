@@ -1,6 +1,4 @@
-(* open Printer *)
 open Backend
-open Typing
 open Parsing
 open Core
 open Lexing
@@ -29,9 +27,11 @@ let parse_file filename =
 
 let compile_file filename =
   let open Result in
+  let ast = parse_file filename in
+  (* (match ast with Ok s -> Printer.print_program s | Error _ -> ()); *)
   let instrs =
     match
-      parse_file filename >>= type_translation_unit
+      ast >>= Typing.Type_check.type_translation_unit
       >>= Analysis.Return_check.check_translation_unit
       >>= Code_gen.gen_translation_unit
     with

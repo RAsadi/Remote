@@ -62,6 +62,7 @@ rule token = parse
   | '+' { Plus }
   | "++" { Incr }
   | "--" { Decr }
+  | "." { Dot }
 
   | "<<" { LShift }
   | ">>" { RShift }

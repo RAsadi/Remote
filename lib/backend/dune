@@ -1,5 +1,5 @@
 (library
  (name backend)
- (libraries core ast parsing)
+ (libraries core ast parsing typing)
  (preprocess
   (pps ppx_sexp_conv ppx_compare ppx_import ppx_let)))
