@@ -5,18 +5,19 @@ fn do_something() {
 fn name(x: u32, y: u32) -> u32 {
   let x: u32 = y;
   let mut y = x;
-  if x {
+  if (x) {
     let z = 10;
-  } else if y {
+  } else if (y) {
     1 * 1 / 2 << 2;
   } else {
     y = 2;
   }
-  while y {
+  while (y) {
     do_something();
     /*
     Uhoh multiline comment
     */
+    y = 0;
   }
   return y;
 }

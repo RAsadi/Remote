@@ -307,7 +307,7 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
         | Var (_, _, id) ->
             let%map expected, mut = lookup_var ctx id in
             equal__type _type expected && equal_mutability mut Mut
-        | PostFix (_, _, inner_expr, Deref) -> Ok (equal__type _type lhs_type)
+        | PostFix (_, _, _, Deref) -> Ok (equal__type _type lhs_type)
         | _ ->
             Or_error.error_string
               "Cannot assign to something thats not a ptr or var"
