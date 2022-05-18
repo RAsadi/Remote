@@ -2,15 +2,11 @@ open Ppx_compare_lib.Builtin
 open Sexplib.Std
 
 type identifier = string [@@deriving sexp, compare, equal]
-type literal = U32 of int | Bool of bool [@@deriving sexp, compare, equal]
 
-type _type =
-  | U32
-  | Bool
-  | Char
-  | Void
-  | Struct of identifier
-  | Pointer of _type
+type literal = U32 of int | Bool of bool | U8 of char
+[@@deriving sexp, compare, equal]
+
+type _type = U32 | U8 | Bool | Void | Struct of identifier | Pointer of _type
 [@@deriving sexp, compare, equal]
 
 type mutability = Mut | Const [@@deriving sexp, compare, equal]

@@ -47,7 +47,8 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
   | Literal (span, l) -> (
       match l with
       | U32 i -> Ok (U32, Literal (span, U32, U32 i))
-      | Bool b -> Ok (Bool, Literal (span, Bool, Bool b)))
+      | Bool b -> Ok (Bool, Literal (span, Bool, Bool b))
+      | U8 c -> Ok (U8, Literal (span, U8, U8 c)))
   | Unary (span, op, e) -> type_unary_expr ctx span op e
   | Binary (span, e1, op, e2) -> type_binary_expr ctx span e1 op e2
   | Var (span, id) ->
@@ -67,7 +68,7 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
         (* make sure all the types line up*)
         if List.equal equal__type arg_type_list arg_types then
           Ok (ret, Call (span, ret, id, args))
-        else Or_error.error_string "Arg types don't match"
+        else Or_error.error_string ("Arg types don't match for " ^ id)
   | Sizeof _ -> Or_error.error_string "TODO"
   | PostFix (span, e, op) -> type_postfix_expr ctx span e op
   | FieldAccess (span, expr, id) -> type_field_access ctx span expr id
@@ -90,7 +91,7 @@ and type_initializer ctx span id inits =
     (* make sure all the types line up*)
     if List.equal equal__type inits_type_list struct_init_types then
       Ok (Ast_types.Struct id, Initializer (span, Struct id, id, inits))
-    else Or_error.error_string "Arg types don't match"
+    else Or_error.error_string "Initializer types don't match"
 
 and type_field_access ctx span expr id =
   let%bind _type, expr = type_expr ctx expr in
@@ -153,6 +154,7 @@ and type_unary_expr ctx span op e =
             match op with
             | Bang -> Ok Ast_types.Bool
             | _ -> Or_error.error_string "Cannot apply unary op to bool")
+        | U8 -> Or_error.error_string "Cannot apply unary op to u8"
         | U32 -> (
             match op with
             | Tilde -> Ok U32
@@ -162,7 +164,6 @@ and type_unary_expr ctx span op e =
             match op with
             | Addr -> Ok (Pointer (Struct i))
             | _ -> Or_error.error_string "Cannot apply unary op to struct")
-        | Char -> Or_error.error_string "Cannot apply unary op to char"
         | Pointer _ -> Or_error.error_string "Cannot apply unary op to ptr")
   in
 
@@ -172,8 +173,8 @@ and type_postfix_expr ctx span e op =
   let%bind _type, e = type_expr ctx e in
   let%map new_type =
     match _type with
-    | Char -> Or_error.error_string "Cannot apply postfix op to char"
     | Bool -> Or_error.error_string "Cannot apply postfix op to bool"
+    | U8 -> Or_error.error_string "Cannot apply unary op to u8"
     | U32 -> (
         match op with
         | Incr | Decr -> Ok Ast_types.U32
@@ -369,7 +370,10 @@ let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
   let init_fn_map =
     Map.of_alist_exn
       (module String)
-      [ ("__malloc", { ret = U32; arg_types = [ U32 ] }) ]
+      [
+        ("__malloc", { ret = U32; arg_types = [ U32 ] });
+        ("__putstr", { ret = Void; arg_types = [ U32; Pointer U8; U32 ] });
+      ]
   in
   let fn_map : fn_mapping =
     List.fold translation_unit ~init:init_fn_map ~f:(fun acc arg ->

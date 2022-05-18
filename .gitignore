@@ -4,3 +4,4 @@ _opam
 build/
 test/test_tmp/
 test/data/external/
+*.o

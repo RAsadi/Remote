@@ -16,7 +16,7 @@ let digit = '0' | non_zero_digit
 let int = '0' | non_zero_digit digit*
 
 let alpha = ['a'-'z' 'A'-'Z']
-let identifier = alpha (alpha|digit|'_')*
+let identifier = (alpha|'_') (alpha|digit|'_')*
 
 let whitespace = [' ' '\t']+
 (* TODO maybe we should handle windows stuff too *)
@@ -40,9 +40,9 @@ rule token = parse
 
   | "struct" { Struct }
 
+  | "u8" { U8 }
   | "u32" { U32 }
   | "bool" { Bool }
-  | "char" { Char }
 
   (* Punc *)
   | '{' { LBrace }
@@ -90,6 +90,7 @@ rule token = parse
   | "true" { Literal (Bool true) }
   | "false" { Literal (Bool false) }
   | int { Literal (U32 (int_of_string (Lexing.lexeme lexbuf))) }
+  | '\'' alpha '\'' { Literal (U8 (Lexing.lexeme_char lexbuf 1)) }
   | identifier { Iden (Lexing.lexeme lexbuf) }
 
   (* Other *)

@@ -1,0 +1,13 @@
+
+fn print(ch: u8) {
+  __putstr(1, &ch, 1);
+}
+
+fn main() -> u32 {
+  print('H');
+  print('e');
+  print('l');
+  print('l');
+  print('o');
+  return 0;
+}

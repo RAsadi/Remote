@@ -63,9 +63,16 @@ let compile_file filename =
   | _ ->
       Stdio.prerr_endline "Failed to assemble";
       Caml.exit 1);
+  (match
+     Stdlib.Sys.command "as -g -arch arm64 -o stdlib/std.o stdlib/std.s"
+   with
+  | 0 -> ()
+  | _ ->
+      Stdio.prerr_endline "Failed to assemble stdlib";
+      Caml.exit 1);
   match
     Stdlib.Sys.command
-      ("ld -o build/" ^ filename ^ " build/" ^ filename
+      ("ld -o build/" ^ filename ^ " stdlib/std.o build/" ^ filename
      ^ ".o -lSystem -syslibroot `xcrun -sdk macosx --show-sdk-path` -e _start \
         -arch arm64")
   with

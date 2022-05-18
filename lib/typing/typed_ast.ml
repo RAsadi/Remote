@@ -7,7 +7,6 @@ open Parsing
    instead of copying this over from the parsed_ast.
 *)
 
-type literal = U32 of int | Bool of bool [@@deriving sexp, compare, equal]
 type identifier = string [@@deriving sexp, compare, equal]
 
 type expr =

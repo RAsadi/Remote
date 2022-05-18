@@ -10,8 +10,9 @@
 // clobbers
 //   x16
 __putstr:
-  mov X16, #40
+  mov X16, #4
   svc #0x80
+  ret
 
 
 // args
@@ -28,4 +29,5 @@ __malloc:
   svc #0x80
   add x1, x8, x0
   svc #0x80
+  ret
   // Should check for failure here, if x1 is equal to x0, i think thats a failure

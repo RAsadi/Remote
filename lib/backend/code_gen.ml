@@ -30,9 +30,9 @@ let rec find_idx lst x =
 let rec get_type_size ctx _type =
   match _type with
   | U32 -> 4
+  | U8 -> 1
   | Bool -> 1
   | Void -> 0
-  | Char -> 1
   | Pointer _ -> 8
   | Struct id ->
       let members = Map.find_exn ctx.struct_mapping id in
@@ -113,7 +113,8 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   | Literal (_, _, l) -> (
       match l with
       | U32 i -> Ok [ Instr.Mov (X0, Const i) ]
-      | Bool b -> Ok [ Instr.Mov (X0, Const (Bool.to_int b)) ])
+      | Bool b -> Ok [ Instr.Mov (X0, Const (Bool.to_int b)) ]
+      | U8 i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ])
   | Unary (_, _, op, e) -> gen_unary ctx op e
   | Binary (_, _, e1, op, e2) -> gen_binary ctx e1 op e2
   | Var (_, _type, id) -> (

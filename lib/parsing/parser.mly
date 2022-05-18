@@ -25,7 +25,7 @@
 // Types
 %token U32
 %token Bool
-%token Char
+%token U8
 
 // Punc
 %token LBrace
@@ -96,7 +96,7 @@ let _struct := Struct; id = Iden; LBrace; types = separated_list(Comma, type_bin
 let type_name :=
   | U32; { U32 }
   | Bool; { Bool }
-  | Char; { Char }
+  | U8; { U8 }
   | ~ = Iden; <Ast.Ast_types.Struct>
   | inner=type_name; Caret; <Ast.Ast_types.Pointer>
 
