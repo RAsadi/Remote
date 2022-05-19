@@ -145,6 +145,9 @@ and type_binary_expr ctx span e1 op e2 =
   let%map new_type =
     match (op, _type1, _type2) with
     (* Arithmetic *)
+    | Plus, Pointer p, _ ->
+        if is_numeric _type2 then Ok (Pointer p)
+        else Or_error.error_string "cannot add to pointer"
     | Plus, _, _ | Minus, _, _ | Star, _, _ | Slash, _, _ ->
         if is_numeric _type1 && is_numeric _type2 then
           Ok (bigger_numeric _type1 _type2)
@@ -407,7 +410,7 @@ let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
     Map.of_alist_exn
       (module String)
       [
-        ("__malloc", { ret = U32; arg_types = [ U32 ] });
+        ("__malloc", { ret = Pointer U8; arg_types = [ U32 ] });
         ("__putstr", { ret = Void; arg_types = [ U32; Pointer U8; U32 ] });
       ]
   in

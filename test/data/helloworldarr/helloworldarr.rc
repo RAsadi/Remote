@@ -1,0 +1,12 @@
+
+fn main() -> u32 {
+  let hello_arr = __malloc(5 * sizeof(u8));
+  (hello_arr + 0)^ = 'h';
+  (hello_arr + 1)^ = 'e';
+  (hello_arr + 2)^ = 'l';
+  (hello_arr + 3)^ = 'l';
+  (hello_arr + 4)^ = 'o';
+
+  __putstr(1, hello_arr, 5);
+  return 0;
+}

@@ -7,7 +7,7 @@
 # Notes
 
 ## Syscalls
-See https://chromium.googlesource.com/chromiumos/docs/+/master/constants/syscalls.md#arm64-64_bit
+MacOS syscalls are diff than linux, see stdlib/syscallref.h (left out of repo bc license)
 
 ## Array notes
 put this in the stdlib

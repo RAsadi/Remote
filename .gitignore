@@ -5,3 +5,4 @@ build/
 test/test_tmp/
 test/data/external/
 *.o
+stdlib/syscallref.h

@@ -23,11 +23,13 @@ __putstr:
 //   x8, x16
 __malloc:
   // TODO, make this robust from errors, we want to make it return null if it fails
-  mov x8, x0
-  mov x1, #0
-  mov x0, #0xd6
-  svc #0x80
-  add x1, x8, x0
+  mov x1, x0 // Number of bytes to allocate
+  // This is a cursed mmap syscall thing
+  mov x0, #0 // Address ptr, set to null
+  mov x2, #0x3 // protection flags, set to READ | WRITE
+  mov x3, #0x1002 // mapping flags, set to MAP_ANON | MAP_PRIVATE
+  mov x4, #0 // fd, 0 because we are using anonymous mapping
+  mov x5, #0 // offset into file, zero for the same reason as above
+  mov x16, #197
   svc #0x80
   ret
-  // Should check for failure here, if x1 is equal to x0, i think thats a failure
