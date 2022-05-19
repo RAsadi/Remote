@@ -101,12 +101,12 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
         if can_convert_list arg_types arg_type_list then
           Ok (ret, Call (span, ret, id, args))
         else Or_error.error_string ("Arg types don't match for " ^ id)
-  | Sizeof (span, id) ->
-      let%map t, _ = lookup_var ctx id in
-      (t, Sizeof (span, t, id))
+  | Sizeof (span, t) -> type_sizeof span t
   | PostFix (span, e, op) -> type_postfix_expr ctx span e op
   | FieldAccess (span, expr, id) -> type_field_access ctx span expr id
   | Initializer (span, id, inits) -> type_initializer ctx span id inits
+
+and type_sizeof span t = Ok (U32, Sizeof (span, U32, t))
 
 and type_initializer ctx span id inits =
   let%bind struct_init_types = lookup_struct ctx id in

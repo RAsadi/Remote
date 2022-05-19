@@ -172,7 +172,7 @@ let postfix_expr :=
 let unary_expr :=
   | postfix_expr
   | op = unary_op; e = unary_expr; { Unary (($startpos, $endpos), op, e) }
-  | Sizeof; LParen; id = Iden; RParen; { Sizeof (($startpos, $endpos), id) }
+  | Sizeof; LParen; t = type_name; RParen; { Sizeof (($startpos, $endpos), t) }
 
 let multiplicative_expr :=
   | unary_expr

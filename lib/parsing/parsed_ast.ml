@@ -5,7 +5,7 @@ open Ast.Ast_types
 type expr =
   | Literal of Span.t * literal
   | Unary of unary_expr
-  | Sizeof of Span.t * identifier
+  | Sizeof of Span.t * _type
   | Binary of binary_expr
   | Var of Span.t * identifier
   | Call of Span.t * identifier * expr list

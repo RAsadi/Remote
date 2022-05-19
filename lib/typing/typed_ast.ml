@@ -12,7 +12,7 @@ type identifier = string [@@deriving sexp, compare, equal]
 type expr =
   | Literal of Span.t * _type * literal
   | Unary of unary_expr
-  | Sizeof of Span.t * _type * identifier
+  | Sizeof of Span.t * _type * _type
   | Binary of binary_expr
   | Var of Span.t * _type * identifier
   | Call of Span.t * _type * identifier * expr list

@@ -3,7 +3,8 @@ open Ast.Ast_types
 open Base
 open Base.Result.Let_syntax
 
-type variable_mapping = (string, int, String.comparator_witness) Map.t
+type variable_info = { offset : int; _type : _type }
+type variable_mapping = (string, variable_info, String.comparator_witness) Map.t
 type struct_type_info = (string * _type) list
 
 type struct_mapping =
@@ -16,11 +17,6 @@ type exec_context = {
   continue_label : string option;
   break_label : string option;
 }
-
-let print_map map =
-  let keys = Map.keys map in
-  List.iter keys ~f:(fun key ->
-      Stdio.print_endline @@ key ^ ": " ^ Int.to_string (Map.find_exn map key))
 
 let rec find_idx lst x =
   match lst with
@@ -60,10 +56,18 @@ let get_offset_from_field ctx struct_type field_name =
   | _ -> raise (Failure "unrentarst")
 
 (* Gives an offset in bytes *)
-let lookup_var (ctx : exec_context) id : int Or_error.t =
+let lookup_var (ctx : exec_context) id : variable_info Or_error.t =
   match Map.find ctx.curr_scope id with
-  | Some offset -> Ok offset
-  | None -> Ok (Map.find_exn ctx.var_map id)
+  | Some info -> Ok info
+  | None -> (
+      match Map.find ctx.var_map id with
+      | Some info -> Ok info
+      | None -> Or_error.error_string "unable to get info for var")
+
+let lookup_struct (ctx : exec_context) id =
+  match Map.find ctx.struct_mapping id with
+  | Some info -> Ok info
+  | None -> Or_error.error_string "unable to get info for struct"
 
 let store_with_offset ctx _type start offset reg_num =
   let type_size = get_type_size ctx _type in
@@ -89,13 +93,13 @@ let load_from_offset ctx _type start offset reg_num =
 
 (* Value will be loaded into x0 *)
 let load_var ctx var_type var_id =
-  let%map offset_in_bytes = lookup_var ctx var_id in
-  load_from_offset ctx var_type "fp" offset_in_bytes 0
+  let%map { offset; _ } = lookup_var ctx var_id in
+  load_from_offset ctx var_type "fp" offset 0
 
 (* Value to store should be in x0 *)
 let store_var ctx var_type var_id =
-  let%map offset_in_bytes = lookup_var ctx var_id in
-  store_with_offset ctx var_type "fp" offset_in_bytes 0
+  let%map { offset; _ } = lookup_var ctx var_id in
+  store_with_offset ctx var_type "fp" offset 0
 
 let push reg_list = List.map reg_list ~f:(fun reg -> Instr.Push reg)
 let pop reg_list = List.map reg_list ~f:(fun reg -> Instr.Pop reg)
@@ -120,12 +124,23 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   | Var (_, _type, id) -> (
       match _type with
       | Struct _ ->
-          let%map offset = lookup_var ctx id in
+          let%map { offset; _ } = lookup_var ctx id in
           [ Instr.Raw ("sub x0, fp, #" ^ Int.to_string offset) ]
       | _ -> load_var ctx _type id)
-  | Sizeof (_, t, _) ->
-      let size = get_type_size ctx t in
-      Ok [ Instr.Mov (X0, Const size) ]
+  | Sizeof (_, _, sizeof_type) ->
+      let%map size =
+        match sizeof_type with
+        | U32 | U8 | Bool | Void | Pointer _ ->
+            Ok (get_type_size ctx sizeof_type)
+        | Struct id -> (
+            let var_res = lookup_var ctx id in
+            match var_res with
+            | Ok { offset = _; _type } -> Ok (get_type_size ctx _type)
+            | Error _ ->
+                let%map _ = lookup_struct ctx id in
+                get_type_size ctx (Struct id))
+      in
+      [ Instr.Mov (X0, Const size) ]
   | Call (_, _, id, args) ->
       (*
           TODO In the future, we should adhere strictly to arm64 ABI.
@@ -203,7 +218,7 @@ and gen_unary ctx op expr =
         | Var (_, _, id) -> Ok id
         | _ -> Or_error.error_string "unreachable"
       in
-      let%map offset = lookup_var ctx var_id in
+      let%map { offset; _ } = lookup_var ctx var_id in
       [ Instr.Raw ("sub x0, fp, #" ^ Int.to_string offset) ]
       (* Put the addr of the var in x0 *)
   | Neg -> Ok (ex @ [ Instr.Neg (X0, Reg X0) ])
@@ -375,7 +390,7 @@ and gen_assignment ctx stack_used lhs expr =
   (* Current, lhs is either a pointer or a var; TODO we need special stuff for structs *)
   match lhs with
   | Var (_, _type, id) ->
-      let%bind offset = lookup_var ctx id in
+      let%bind { offset; _ } = lookup_var ctx id in
       let%map expr = gen_expr ctx expr in
       (ctx, stack_used, expr @ store_with_offset ctx _type "fp" offset 0)
   | PostFix (_, _, inner, Deref) ->
@@ -400,8 +415,12 @@ and gen_declaration ctx stack_used
   in
   let stack_required = get_type_size ctx decl_type in
   let offset = stack_used + stack_required in
-  let var_map = Map.set ctx.var_map ~key:id ~data:offset in
-  let curr_scope = Map.set ctx.curr_scope ~key:id ~data:offset in
+  let var_map =
+    Map.set ctx.var_map ~key:id ~data:{ offset; _type = decl_type }
+  in
+  let curr_scope =
+    Map.set ctx.curr_scope ~key:id ~data:{ offset; _type = decl_type }
+  in
   let new_ctx =
     {
       var_map;
@@ -499,11 +518,10 @@ let gen_fn (ctx : exec_context) (fn : fn) : Instr.t list Or_error.t =
   let%bind arg_ldr =
     List.foldi fn.args ~init:(Ok []) ~f:(fun idx acc (_, id, _type) ->
         let%bind acc = acc in
-        let%map offset = lookup_var ctx id in
+        let%map { offset; _ } = lookup_var ctx id in
         acc @ store_with_offset ctx _type "fp" offset idx)
   in
-  let%map ctx, stack_required, body = gen_stmt ctx stack_required fn.body in
-  print_map ctx.var_map;
+  let%map _, stack_required, body = gen_stmt ctx stack_required fn.body in
   let preamble : Instr.t list =
     [
       Instr.Label fn.id;

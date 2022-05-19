@@ -1,0 +1,4 @@
+fn main() -> u32 {
+  let x:u32 = 9;
+  return sizeof(x);
+}
