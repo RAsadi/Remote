@@ -89,8 +89,8 @@ rule token = parse
   (* Literals *)
   | "true" { Literal (Bool true) }
   | "false" { Literal (Bool false) }
-  | int { Literal (U32 (int_of_string (Lexing.lexeme lexbuf))) }
-  | '\'' alpha '\'' { Literal (U8 (Lexing.lexeme_char lexbuf 1)) }
+  | int { Literal (Num (int_of_string (Lexing.lexeme lexbuf))) }
+  | '\'' alpha '\'' { Literal (Char (Lexing.lexeme_char lexbuf 1)) }
   | identifier { Iden (Lexing.lexeme lexbuf) }
 
   (* Other *)

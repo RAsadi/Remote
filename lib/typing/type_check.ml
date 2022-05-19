@@ -40,15 +40,47 @@ let lookup_struct ctx id =
   | None -> Or_error.error_string ("Couldn't find struct " ^ id)
   | Some a -> Ok a
 
+let max_u8 = Int.pow 2 8 - 1
+let max_u32 = Int.pow 2 32 - 1
+
+let smallest_numeric i =
+  if i <= max_u8 then U8
+  else if i <= max_u32 then U32
+  else raise (Failure "he numeric too big")
+
+let is_numeric _type = match _type with U8 | U32 -> true | _ -> false
+
+let bigger_numeric _type1 _type2 =
+  match (_type1, _type2) with
+  | U32, U32 | U32, U8 | U8, U32 -> U32
+  | U8, U8 -> U8
+  | _ -> raise (Failure "unreachable")
+
+(* Checks if t2 is convertable to t1. Note this doesn't commute  *)
+let can_convert t1 t2 =
+  let can_widen t1 t2 =
+    is_numeric t1 && is_numeric t2 && equal__type t1 (bigger_numeric t1 t2)
+  in
+  equal__type t1 t2 || can_widen t1 t2
+
+(* Checks if type_list2 is convertable to type_list1 *)
+let can_convert_list type_list1 type_list2 =
+  match List.zip type_list1 type_list2 with
+  | Ok lst ->
+      List.fold lst ~init:true ~f:(fun acc (t1, t2) -> acc && can_convert t1 t2)
+  | List.Or_unequal_lengths.Unequal_lengths -> false
+
 let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
     (_type * expr) Or_error.t =
   let type_expr = type_expr ctx in
   match expr with
   | Literal (span, l) -> (
       match l with
-      | U32 i -> Ok (U32, Literal (span, U32, U32 i))
+      | Num i ->
+          let numeric_type = smallest_numeric i in
+          Ok (numeric_type, Literal (span, numeric_type, Num i))
       | Bool b -> Ok (Bool, Literal (span, Bool, Bool b))
-      | U8 c -> Ok (U8, Literal (span, U8, U8 c)))
+      | Char c -> Ok (U8, Literal (span, U8, Char c)))
   | Unary (span, op, e) -> type_unary_expr ctx span op e
   | Binary (span, e1, op, e2) -> type_binary_expr ctx span e1 op e2
   | Var (span, id) ->
@@ -66,7 +98,7 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
         in
         let arg_type_list, args = List.unzip arg_list in
         (* make sure all the types line up*)
-        if List.equal equal__type arg_type_list arg_types then
+        if can_convert_list arg_types arg_type_list then
           Ok (ret, Call (span, ret, id, args))
         else Or_error.error_string ("Arg types don't match for " ^ id)
   | Sizeof _ -> Or_error.error_string "TODO"
@@ -89,7 +121,7 @@ and type_initializer ctx span id inits =
     in
     let inits_type_list, inits = List.unzip init_list in
     (* make sure all the types line up*)
-    if List.equal equal__type inits_type_list struct_init_types then
+    if can_convert_list struct_init_types inits_type_list then
       Ok (Ast_types.Struct id, Initializer (span, Struct id, id, inits))
     else Or_error.error_string "Initializer types don't match"
 
@@ -110,32 +142,32 @@ and type_binary_expr ctx span e1 op e2 =
   let%bind _type1, e1 = type_expr ctx e1 and _type2, e2 = type_expr ctx e2 in
   let%map new_type =
     match (op, _type1, _type2) with
-    | Plus, Ast_types.U32, Ast_types.U32 -> Ok Ast_types.U32
-    | Minus, U32, U32 -> Ok U32
-    | Star, U32, U32 -> Ok U32
-    | Slash, U32, U32 -> Ok U32
+    (* Arithmetic *)
+    | Plus, _, _ | Minus, _, _ | Star, _, _ | Slash, _, _ ->
+        if is_numeric _type1 && is_numeric _type2 then
+          Ok (bigger_numeric _type1 _type2)
+        else Or_error.error_string "cannot do arithmetic on non-numeric types"
     (* Bitwise *)
-    | LShift, U32, U32 -> Ok U32
-    | RShift, U32, U32 -> Ok U32
-    | And, U32, U32 -> Ok U32
-    | Or, U32, U32 -> Ok U32
-    | Xor, U32, U32 -> Ok U32
+    | LShift, _, _ | RShift, _, _ | And, _, _ | Or, _, _ | Xor, _, _ ->
+        if is_numeric _type1 && is_numeric _type2 then
+          Ok (bigger_numeric _type1 _type2)
+        else Or_error.error_string "cannot do bitwise on non-numeric types"
     | LAnd, Bool, Bool -> Ok Bool
     | LOr, Bool, Bool -> Ok Bool
     (* Equality *)
     | Eq, Bool, Bool -> Ok Bool
     | Neq, Bool, Bool -> Ok Bool
-    | Eq, U32, U32 -> Ok Bool
-    | Neq, U32, U32 -> Ok Bool
+    | Eq, _, _ | Neq, _, _ ->
+        if is_numeric _type1 && is_numeric _type2 then Ok Bool
+        else Or_error.error_string "cannot compare non-numeric types"
     (* Comparison *)
     | Lt, Bool, Bool -> Ok Bool
     | Lte, Bool, Bool -> Ok Bool
     | Gt, Bool, Bool -> Ok Bool
     | Gte, Bool, Bool -> Ok Bool
-    | Lt, U32, U32 -> Ok Bool
-    | Lte, U32, U32 -> Ok Bool
-    | Gt, U32, U32 -> Ok Bool
-    | Gte, U32, U32 -> Ok Bool
+    | Lt, _, _ | Lte, _, _ | Gt, _, _ | Gte, _, _ ->
+        if is_numeric _type1 && is_numeric _type2 then Ok Bool
+        else Or_error.error_string "cannot compare non-numeric types"
     | _ -> Or_error.error_string "TODO"
   in
   (new_type, Binary (span, new_type, e1, op, e2))
@@ -149,22 +181,23 @@ and type_unary_expr ctx span op e =
         | Var (_, t, _) -> Ok (Pointer t)
         | _ -> Or_error.error_string "Cannot take addr of temporary")
     | _ -> (
-        match _type with
-        | Bool -> (
-            match op with
-            | Bang -> Ok Ast_types.Bool
-            | _ -> Or_error.error_string "Cannot apply unary op to bool")
-        | U8 -> Or_error.error_string "Cannot apply unary op to u8"
-        | U32 -> (
-            match op with
-            | Tilde -> Ok U32
-            | _ -> Or_error.error_string "Cannot apply unary op to u32")
-        | Void -> Or_error.error_string "Cannot apply unary op to void"
-        | Struct i -> (
-            match op with
-            | Addr -> Ok (Pointer (Struct i))
-            | _ -> Or_error.error_string "Cannot apply unary op to struct")
-        | Pointer _ -> Or_error.error_string "Cannot apply unary op to ptr")
+        if is_numeric _type then
+          match op with
+          | Tilde -> Ok _type
+          | _ -> Or_error.error_string "Cannot apply unary op to numeric_type"
+        else
+          match _type with
+          | Bool -> (
+              match op with
+              | Bang -> Ok Ast_types.Bool
+              | _ -> Or_error.error_string "Cannot apply unary op to bool")
+          | Void -> Or_error.error_string "Cannot apply unary op to void"
+          | Struct i -> (
+              match op with
+              | Addr -> Ok (Pointer (Struct i))
+              | _ -> Or_error.error_string "Cannot apply unary op to struct")
+          | Pointer _ -> Or_error.error_string "Cannot apply unary op to ptr"
+          | _ -> raise (Failure "unreachable"))
   in
 
   (new_type, Unary (span, new_type, op, e))
@@ -172,19 +205,20 @@ and type_unary_expr ctx span op e =
 and type_postfix_expr ctx span e op =
   let%bind _type, e = type_expr ctx e in
   let%map new_type =
-    match _type with
-    | Bool -> Or_error.error_string "Cannot apply postfix op to bool"
-    | U8 -> Or_error.error_string "Cannot apply unary op to u8"
-    | U32 -> (
-        match op with
-        | Incr | Decr -> Ok Ast_types.U32
-        | _ -> Or_error.error_string "Cannot apply postfix op to u32")
-    | Void -> Or_error.error_string "Cannot apply postfix op to void"
-    | Struct _ -> Or_error.error_string "Cannot apply postfix op to struct"
-    | Pointer s -> (
-        match op with
-        | Deref -> Ok s
-        | _ -> Or_error.error_string "Cannot apply postfix op to ptr")
+    if is_numeric _type then
+      match op with
+      | Incr | Decr -> Ok _type
+      | _ -> Or_error.error_string "Cannot apply unary op to numeric_type"
+    else
+      match _type with
+      | Bool -> Or_error.error_string "Cannot apply postfix op to bool"
+      | Void -> Or_error.error_string "Cannot apply postfix op to void"
+      | Struct _ -> Or_error.error_string "Cannot apply postfix op to struct"
+      | Pointer s -> (
+          match op with
+          | Deref -> Ok s
+          | _ -> Or_error.error_string "Cannot apply postfix op to ptr")
+      | _ -> raise (Failure "unreachable")
   in
   (new_type, PostFix (span, new_type, e, op))
 
@@ -237,7 +271,7 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
           | _ -> Or_error.error_string "Invalid return from void function")
       | Some e ->
           let%bind _type, typed_e = type_expr ctx e in
-          if equal__type _type ret_type then
+          if can_convert ret_type _type then
             Ok (ctx, Return (span, Some typed_e))
           else Or_error.error_string "Invalid return type")
   | Break span -> Ok (ctx, Break span)
@@ -253,18 +287,18 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
       | Some defn ->
           (* If we have a defn, we should make sure the expr matches it *)
           let%bind expr_type, typed_defn = type_expr ctx defn in
-          let var_map = Map.set ctx.var_map ~key:id ~data:(expr_type, mut) in
-          let curr_scope =
-            Map.set ctx.curr_scope ~key:id ~data:(expr_type, mut)
-          in
-          let%map _ =
+          let%map var_type =
             match type_annotation with
-            | None -> Ok ()
+            | None -> Ok expr_type
             | Some annotation ->
-                if equal__type annotation expr_type then Ok ()
+                if can_convert annotation expr_type then Ok annotation
                 else
                   Or_error.error_string
                     "Type annotation doesn't match definition"
+          in
+          let var_map = Map.set ctx.var_map ~key:id ~data:(var_type, mut) in
+          let curr_scope =
+            Map.set ctx.curr_scope ~key:id ~data:(var_type, mut)
           in
           ( {
               var_map;
@@ -309,8 +343,8 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
         match typed_lhs with
         | Var (_, _, id) ->
             let%map expected, mut = lookup_var ctx id in
-            equal__type _type expected && equal_mutability mut Mut
-        | PostFix (_, _, _, Deref) -> Ok (equal__type _type lhs_type)
+            can_convert expected _type && equal_mutability mut Mut
+        | PostFix (_, _, _, Deref) -> Ok (can_convert lhs_type _type)
         | _ ->
             Or_error.error_string
               "Cannot assign to something thats not a ptr or var"

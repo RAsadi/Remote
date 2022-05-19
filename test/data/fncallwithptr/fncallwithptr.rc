@@ -3,7 +3,7 @@ fn oopa(x: u32^) {
 }
 
 fn main() -> u32 {
-  let y = 10;
+  let y: u32 = 10;
   oopa(&y);
   return y;
 }

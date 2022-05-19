@@ -1,0 +1,6 @@
+
+fn main() -> u32 {
+  let x = 'a';
+  let y = 10;
+  return 10 + x;
+}

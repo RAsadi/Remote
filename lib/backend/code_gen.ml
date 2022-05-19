@@ -81,7 +81,7 @@ let load_from_offset ctx _type start offset reg_num =
   let offset = Int.to_string offset in
   let rn = Int.to_string reg_num in
   match type_size with
-  | 1 -> [ Instr.Raw ("ldrb x" ^ rn ^ ", [" ^ start ^ ", #-" ^ offset ^ "]") ]
+  | 1 -> [ Instr.Raw ("ldrb w" ^ rn ^ ", [" ^ start ^ ", #-" ^ offset ^ "]") ]
   | 2 -> [ Instr.Raw ("ldrh x" ^ rn ^ ", [" ^ start ^ ", #-" ^ offset ^ "]") ]
   | 4 -> [ Instr.Raw ("ldr w" ^ rn ^ ", [" ^ start ^ ", #-" ^ offset ^ "]") ]
   | 8 -> [ Instr.Raw ("ldr x" ^ rn ^ ", [" ^ start ^ ", #-" ^ offset ^ "]") ]
@@ -112,9 +112,9 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
   match expr with
   | Literal (_, _, l) -> (
       match l with
-      | U32 i -> Ok [ Instr.Mov (X0, Const i) ]
+      | Num i -> Ok [ Instr.Mov (X0, Const i) ]
       | Bool b -> Ok [ Instr.Mov (X0, Const (Bool.to_int b)) ]
-      | U8 i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ])
+      | Char i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ])
   | Unary (_, _, op, e) -> gen_unary ctx op e
   | Binary (_, _, e1, op, e2) -> gen_binary ctx e1 op e2
   | Var (_, _type, id) -> (
@@ -156,18 +156,20 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
       (* Based on codegen for var, x0 should now hold the address of var *)
       let field_offset = get_offset_from_field ctx struct_type field_name in
       lhs_instrs @ load_from_offset ctx _type "x0" field_offset 0
-  | Initializer (_, _type, _, inits) ->
+  | Initializer (_, _type, struct_id, inits) ->
       (* Generate and push things onto the stack.
          This is technically broken in the case of returning from a function, but thats ok for now.
          Note that stack space is only reclaimed after the function exits, which is kinda scuffed
       *)
+      let struct_info = Map.find_exn ctx.struct_mapping struct_id in
       let%map stack_move_amt, push_instrs =
-        List.fold inits
+        List.fold
+          (List.zip_exn struct_info inits)
           ~init:(Ok (0, []))
-          ~f:(fun acc arg ->
+          ~f:(fun acc (info, arg) ->
             let%bind curr_offset, acc = acc in
             let%map expr_instrs = gen_expr ctx arg in
-            let arg_type = get_expr_type arg in
+            let _, arg_type = info in
             let new_offset = get_type_size ctx arg_type + curr_offset in
             ( new_offset,
               acc @ expr_instrs
@@ -351,8 +353,8 @@ and gen_while ctx stack_used cond body =
       curr_scope = ctx.curr_scope;
       var_map = ctx.var_map;
       struct_mapping = ctx.struct_mapping;
-      break_label = Some start_label;
-      continue_label = Some end_label;
+      break_label = Some end_label;
+      continue_label = Some start_label;
     }
   in
   let%bind _, stack_used, body_instrs =

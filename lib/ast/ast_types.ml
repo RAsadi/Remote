@@ -3,7 +3,7 @@ open Sexplib.Std
 
 type identifier = string [@@deriving sexp, compare, equal]
 
-type literal = U32 of int | Bool of bool | U8 of char
+type literal = Num of int | Bool of bool | Char of char
 [@@deriving sexp, compare, equal]
 
 type _type = U32 | U8 | Bool | Void | Struct of identifier | Pointer of _type
