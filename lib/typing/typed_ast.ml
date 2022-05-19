@@ -1,28 +1,24 @@
 open Ppx_compare_lib.Builtin
 open Sexplib.Std
-open Ast.Ast_types
+open Ast
 open Parsing
 
-(* TODO, really should just make these generic
-   instead of copying this over from the parsed_ast.
-*)
-
-type identifier = string [@@deriving sexp, compare, equal]
+(* TODO, could just make these generic instead of copying this over from the parsed_ast.*)
 
 type expr =
-  | Literal of Span.t * _type * literal
+  | Literal of Span.t * Type.t * Literal.t
   | Unary of unary_expr
-  | Sizeof of Span.t * _type * _type
+  | Sizeof of Span.t * Type.t * Type.t
   | Binary of binary_expr
-  | Var of Span.t * _type * identifier
-  | Call of Span.t * _type * identifier * expr list
-  | PostFix of Span.t * _type * expr * postfix_op
-  | FieldAccess of Span.t * _type * expr * identifier
-  | Initializer of Span.t * _type * identifier * expr list
+  | Var of Span.t * Type.t * Identifier.t
+  | Call of Span.t * Type.t * Identifier.t * expr list
+  | PostFix of Span.t * Type.t * expr * Operator.postfix
+  | FieldAccess of Span.t * Type.t * expr * Identifier.t
+  | Initializer of Span.t * Type.t * Identifier.t * expr list
 
-and unary_expr = Span.t * _type * unary_op * expr
+and unary_expr = Span.t * Type.t * Operator.unary * expr
 
-and binary_expr = Span.t * _type * expr * binary_op * expr
+and binary_expr = Span.t * Type.t * expr * Operator.binary * expr
 [@@deriving sexp, compare, equal]
 
 let get_expr_type (expr : expr) =
@@ -44,32 +40,33 @@ type stmt =
   | Block of Span.t * stmt list
   | If of Span.t * expr * stmt * stmt option
   | While of Span.t * expr * stmt
-  | For of Span.t * identifier * expr * stmt
+  | For of Span.t * Identifier.t * expr * stmt
   | Return of Span.t * expr option
   | Break of Span.t
   | Continue of Span.t
 
 and declaration = {
   span : Span.t;
-  mut : mutability;
-  id : identifier;
-  type_annotation : _type option;
+  mut : Type.mutability;
+  id : Identifier.t;
+  type_annotation : Type.t option;
   defn : expr option;
 }
 [@@deriving sexp, compare, equal]
 
-type typed_var = Span.t * identifier * _type [@@deriving sexp, compare, equal]
+type typed_var = Span.t * Identifier.t * Type.t
+[@@deriving sexp, compare, equal]
 
 type fn = {
   span : Span.t;
-  id : identifier;
+  id : Identifier.t;
   args : typed_var list;
-  _type : _type;
+  typ : Type.t;
   body : stmt;
 }
 [@@deriving sexp, compare, equal]
 
-type _struct = Span.t * identifier * typed_var list
+type _struct = Span.t * Identifier.t * typed_var list
 [@@deriving sexp, compare, equal]
 
 type top_level_element = Fn of fn | Struct of _struct

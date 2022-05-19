@@ -1,5 +1,5 @@
 open Typing.Typed_ast
-open Ast.Ast_types
+open Ast
 open Base
 open Base.Result.Let_syntax
 
@@ -21,7 +21,7 @@ let rec check_stmt (stmt : stmt) : bool =
   | Continue _ -> true
 
 let check_fn (fn : fn) : unit Or_error.t =
-  if equal__type fn._type Void then Ok ()
+  if Type.equal fn.typ Void then Ok ()
   else
     match check_stmt fn.body with
     | true -> Ok ()

@@ -1,11 +1,12 @@
 open Typing.Typed_ast
-open Ast.Ast_types
+open Ast
+open Ast.Type
 open Base
 open Base.Result.Let_syntax
 
-type variable_info = { offset : int; _type : _type }
+type variable_info = { offset : int; typ : Type.t }
 type variable_mapping = (string, variable_info, String.comparator_witness) Map.t
-type struct_type_info = (string * _type) list
+type struct_type_info = (string * Type.t) list
 
 type struct_mapping =
   (string, struct_type_info, String.comparator_witness) Map.t
@@ -135,7 +136,7 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
         | Struct id -> (
             let var_res = lookup_var ctx id in
             match var_res with
-            | Ok { offset = _; _type } -> Ok (get_type_size ctx _type)
+            | Ok { offset = _; typ } -> Ok (get_type_size ctx typ)
             | Error _ ->
                 let%map _ = lookup_struct ctx id in
                 get_type_size ctx (Struct id))
@@ -415,11 +416,9 @@ and gen_declaration ctx stack_used
   in
   let stack_required = get_type_size ctx decl_type in
   let offset = stack_used + stack_required in
-  let var_map =
-    Map.set ctx.var_map ~key:id ~data:{ offset; _type = decl_type }
-  in
+  let var_map = Map.set ctx.var_map ~key:id ~data:{ offset; typ = decl_type } in
   let curr_scope =
-    Map.set ctx.curr_scope ~key:id ~data:{ offset; _type = decl_type }
+    Map.set ctx.curr_scope ~key:id ~data:{ offset; typ = decl_type }
   in
   let new_ctx =
     {

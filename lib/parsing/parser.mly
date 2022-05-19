@@ -1,10 +1,9 @@
 %{
-  open Ast.Ast_types
   open Parsed_ast
 %}
 
-%token <Ast.Ast_types.literal> Literal
-%token <Ast.Ast_types.identifier> Iden
+%token <Ast.Literal.t> Literal
+%token <Ast.Identifier.t> Iden
 %token Eof
 
 // Keywords
@@ -76,7 +75,7 @@
 // Assignment
 %token Assign
 
-%type <Ast.Ast_types._type> type_name
+%type <Ast.Type.t> type_name
 
 %start <Parsed_ast.translation_unit> translation_unit
 %%
@@ -88,7 +87,7 @@ let top_level_element :=
   | ~ = _struct; <Struct>
 
 let fn := Fn; id = Iden; LParen; args = separated_list(Comma, type_binding); RParen; sg = option(type_signature); body = compound_stmt;
-    { {span=($startpos, $endpos); id=id; args=args; _type=(match sg with Some sg -> sg | None -> Void); body=body } }
+    { {span=($startpos, $endpos); id=id; args=args; typ=(match sg with Some sg -> sg | None -> Void); body=body } }
 
 let _struct := Struct; id = Iden; LBrace; types = separated_list(Comma, type_binding); RBrace;
   { (($startpos, $endpos), id, types) }
@@ -97,8 +96,8 @@ let type_name :=
   | U32; { U32 }
   | Bool; { Bool }
   | U8; { U8 }
-  | ~ = Iden; <Ast.Ast_types.Struct>
-  | inner=type_name; Caret; <Ast.Ast_types.Pointer>
+  | ~ = Iden; <Ast.Type.Struct>
+  | inner=type_name; Caret; <Ast.Type.Pointer>
 
 let type_annotation == Colon; ~ = type_name; <>
 
@@ -217,34 +216,34 @@ let lor_expr :=
 let expr == lor_expr
 
 let unary_op ==
-  | Minus; { Neg }
-  | Bang; { Bang }
-  | Tilde; { Tilde }
-  | Ampersand; { Addr }
+  | Minus; {  Ast.Operator.Neg }
+  | Bang; {  Ast.Operator.Bang }
+  | Tilde; {  Ast.Operator.Tilde }
+  | Ampersand; { Ast.Operator.Addr }
 
 let multiplicative_op ==
-  | Star; { Star }
-  | Slash; { Slash }
+  | Star; {  Ast.Operator.Star }
+  | Slash; {  Ast.Operator.Slash }
 
 let additive_op ==
-  | Plus; { Plus }
-  | Minus; { Minus }
+  | Plus; {  Ast.Operator.Plus }
+  | Minus; {  Ast.Operator.Minus }
 
 let relational_op ==
-  | Gt; { Gt }
-  | Gte; { Gte }
-  | Lt; { Lt }
-  | Lte; { Lte }
+  | Gt; {  Ast.Operator.Gt }
+  | Gte; {  Ast.Operator.Gte }
+  | Lt; {  Ast.Operator.Lt }
+  | Lte; {  Ast.Operator.Lte }
 
 let equality_op ==
-  | Eq; { Eq }
-  | Neq; { Neq }
+  | Eq; {  Ast.Operator.Eq }
+  | Neq; {  Ast.Operator.Neq }
 
 let shift_op ==
-  | LShift; { LShift }
-  | RShift; { RShift }
+  | LShift; {  Ast.Operator.LShift }
+  | RShift; {  Ast.Operator.RShift }
 
 let postfix_op ==
-  | Incr; { Incr }
-  | Decr; { Decr }
-  | Caret; { Deref }
+  | Incr; {  Ast.Operator.Incr }
+  | Decr; {  Ast.Operator.Decr }
+  | Caret; {  Ast.Operator.Deref }

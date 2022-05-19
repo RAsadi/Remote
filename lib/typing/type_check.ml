@@ -1,14 +1,16 @@
 open Ast
-open Ast.Ast_types
+open Ast.Type
 open Parsing
 open Base
 open Base.Result.Let_syntax
 open Typed_ast
 
-type var_mapping = (string, _type * mutability, String.comparator_witness) Map.t
-type fn_type_info = { ret : _type; arg_types : _type list }
+type var_mapping =
+  (string, Type.t * Type.mutability, String.comparator_witness) Map.t
+
+type fn_type_info = { ret : Type.t; arg_types : Type.t list }
 type fn_mapping = (string, fn_type_info, String.comparator_witness) Map.t
-type struct_type_info = (identifier * _type) list
+type struct_type_info = (Identifier.t * Type.t) list
 
 type struct_mapping =
   (string, struct_type_info, String.comparator_witness) Map.t
@@ -20,7 +22,7 @@ type ctx = {
   curr_scope : var_mapping;
 }
 
-let lookup_var (ctx : ctx) id : (_type * mutability) Or_error.t =
+let lookup_var (ctx : ctx) id : (Type.t * Type.mutability) Or_error.t =
   match Map.find ctx.curr_scope id with
   | None -> (
       match Map.find ctx.var_map id with
@@ -59,9 +61,9 @@ let bigger_numeric _type1 _type2 =
 (* Checks if t2 is convertable to t1. Note this doesn't commute  *)
 let can_convert t1 t2 =
   let can_widen t1 t2 =
-    is_numeric t1 && is_numeric t2 && equal__type t1 (bigger_numeric t1 t2)
+    is_numeric t1 && is_numeric t2 && Type.equal t1 (bigger_numeric t1 t2)
   in
-  equal__type t1 t2 || can_widen t1 t2
+  Type.equal t1 t2 || can_widen t1 t2
 
 (* Checks if type_list2 is convertable to type_list1 *)
 let can_convert_list type_list1 type_list2 =
@@ -71,7 +73,7 @@ let can_convert_list type_list1 type_list2 =
   | List.Or_unequal_lengths.Unequal_lengths -> false
 
 let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
-    (_type * expr) Or_error.t =
+    (Type.t * expr) Or_error.t =
   let type_expr = type_expr ctx in
   match expr with
   | Literal (span, l) -> (
@@ -124,7 +126,7 @@ and type_initializer ctx span id inits =
     let inits_type_list, inits = List.unzip init_list in
     (* make sure all the types line up*)
     if can_convert_list struct_init_types inits_type_list then
-      Ok (Ast_types.Struct id, Initializer (span, Struct id, id, inits))
+      Ok (Type.Struct id, Initializer (span, Struct id, id, inits))
     else Or_error.error_string "Initializer types don't match"
 
 and type_field_access ctx span expr id =
@@ -133,7 +135,7 @@ and type_field_access ctx span expr id =
   | Struct struct_id -> (
       let%bind var_list = lookup_struct ctx struct_id in
       match
-        List.find var_list ~f:(fun (var_id, _) -> equal_identifier id var_id)
+        List.find var_list ~f:(fun (var_id, _) -> Identifier.equal id var_id)
       with
       | None -> Or_error.error_string "Could not find matching member in struct"
       | Some (_, var_type) ->
@@ -194,7 +196,7 @@ and type_unary_expr ctx span op e =
           match _type with
           | Bool -> (
               match op with
-              | Bang -> Ok Ast_types.Bool
+              | Bang -> Ok Type.Bool
               | _ -> Or_error.error_string "Cannot apply unary op to bool")
           | Void -> Or_error.error_string "Cannot apply unary op to void"
           | Struct i -> (
@@ -369,10 +371,10 @@ let type_fn struct_map fn_map (fn : Parsed_ast.fn) =
   let ctx =
     { struct_map; var_map; fn_map; curr_scope = Map.empty (module String) }
   in
-  let%map _, body = type_stmt fn._type ctx fn.body in
+  let%map _, body = type_stmt fn.typ ctx fn.body in
   match body with
   | Block (span, stmts) -> (
-      match fn._type with
+      match fn.typ with
       | Void ->
           (* For all void functions, we sneak in a fake return stmt here *)
           let real_body =
@@ -382,20 +384,18 @@ let type_fn struct_map fn_map (fn : Parsed_ast.fn) =
             span = fn.span;
             id = fn.id;
             args = fn.args;
-            _type = fn._type;
+            typ = fn.typ;
             body = real_body;
           }
-      | _ ->
-          { span = fn.span; id = fn.id; args = fn.args; _type = fn._type; body }
-      )
+      | _ -> { span = fn.span; id = fn.id; args = fn.args; typ = fn.typ; body })
   | _ -> raise (Failure "unreachable")
 
 let get_fn_sig fn_map (fn : Parsed_ast.fn) =
-  let arg_types = List.map fn.args ~f:(fun (_, _, _type) -> _type) in
-  Map.set fn_map ~key:fn.id ~data:{ ret = fn._type; arg_types }
+  let arg_types = List.map fn.args ~f:(fun (_, _, typ) -> typ) in
+  Map.set fn_map ~key:fn.id ~data:{ ret = fn.typ; arg_types }
 
 let add_struct struct_map ((_, id, var_list) : Parsed_ast._struct) =
-  let var_list = List.map var_list ~f:(fun (_, id, _type) -> (id, _type)) in
+  let var_list = List.map var_list ~f:(fun (_, id, typ) -> (id, typ)) in
   Map.set struct_map ~key:id ~data:var_list
 
 let get_struct_map translation_unit =
