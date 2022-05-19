@@ -101,7 +101,9 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
         if can_convert_list arg_types arg_type_list then
           Ok (ret, Call (span, ret, id, args))
         else Or_error.error_string ("Arg types don't match for " ^ id)
-  | Sizeof _ -> Or_error.error_string "TODO"
+  | Sizeof (span, id) ->
+      let%map t, _ = lookup_var ctx id in
+      (t, Sizeof (span, t, id))
   | PostFix (span, e, op) -> type_postfix_expr ctx span e op
   | FieldAccess (span, expr, id) -> type_field_access ctx span expr id
   | Initializer (span, id, inits) -> type_initializer ctx span id inits

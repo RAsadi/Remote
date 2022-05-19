@@ -123,7 +123,9 @@ let rec gen_expr (ctx : exec_context) (expr : expr) : Instr.t list Or_error.t =
           let%map offset = lookup_var ctx id in
           [ Instr.Raw ("sub x0, fp, #" ^ Int.to_string offset) ]
       | _ -> load_var ctx _type id)
-  | Sizeof _ -> Ok []
+  | Sizeof (_, t, _) ->
+      let size = get_type_size ctx t in
+      Ok [ Instr.Mov (X0, Const size) ]
   | Call (_, _, id, args) ->
       (*
           TODO In the future, we should adhere strictly to arm64 ABI.
