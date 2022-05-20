@@ -19,10 +19,17 @@ type exec_context = {
   break_label : string option;
 }
 
-let get_struct_pack ctx struct_id =
-  let members = Map.find_exn ctx.struct_mapping struct_id in
-  List.map members ~f:(fun (_, member) ->
-      Type.get_size ctx.struct_mapping member)
+let rec get_type_size ctx _type =
+  match _type with
+  | U32 -> 4
+  | U8 -> 1
+  | Bool -> 1
+  | Void -> 0
+  | Pointer _ -> 8
+  | Struct id ->
+      let members = Map.find_exn ctx.struct_mapping id in
+      List.fold members ~init:0 ~f:(fun acc (_, member) ->
+          acc + get_type_size ctx member)
 
 let get_offset_from_field ctx struct_type field_name =
   match struct_type with
@@ -33,7 +40,7 @@ let get_offset_from_field ctx struct_type field_name =
           ~f:(fun (seen, total) (id, curr) ->
             if seen then (true, total)
             else
-              let new_total = Type.get_size ctx.struct_mapping curr + total in
+              let new_total = get_type_size ctx curr + total in
               if String.equal id field_name then (true, new_total)
               else (false, new_total))
       in
@@ -55,7 +62,7 @@ let lookup_struct (ctx : exec_context) id =
   | None -> Or_error.error_string "unable to get info for struct"
 
 let store_with_offset ctx _type start offset reg_num =
-  let type_size = Type.get_size ctx.struct_mapping _type in
+  let type_size = get_type_size ctx _type in
   let offset = Int.to_string offset in
   let rn = Int.to_string reg_num in
   match type_size with
@@ -66,7 +73,7 @@ let store_with_offset ctx _type start offset reg_num =
   | _ -> raise (Failure "unreachable")
 
 let load_from_offset ctx _type start offset reg_num =
-  let type_size = Type.get_size ctx.struct_mapping _type in
+  let type_size = get_type_size ctx _type in
   let offset = Int.to_string offset in
   let rn = Int.to_string reg_num in
   match type_size with
@@ -115,15 +122,14 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       let%map size =
         match sizeof_type with
         | U32 | U8 | Bool | Void | Pointer _ ->
-            Ok (Type.get_size ctx.struct_mapping sizeof_type)
+            Ok (get_type_size ctx sizeof_type)
         | Struct id -> (
             let var_res = lookup_var ctx id in
             match var_res with
-            | Ok { offset = _; typ } ->
-                Ok (Type.get_size ctx.struct_mapping typ)
+            | Ok { offset = _; typ } -> Ok (get_type_size ctx typ)
             | Error _ ->
                 let%map _ = lookup_struct ctx id in
-                Type.get_size ctx.struct_mapping (Struct id))
+                get_type_size ctx (Struct id))
       in
       [ Instr.Mov (X0, Const size) ]
   | Call (_, _, id, args) ->
@@ -172,9 +178,7 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
             let%bind curr_offset, acc = acc in
             let%map expr_instrs = gen_expr ctx arg in
             let _, arg_type = info in
-            let new_offset =
-              Type.get_size ctx.struct_mapping arg_type + curr_offset
-            in
+            let new_offset = get_type_size ctx arg_type + curr_offset in
             ( new_offset,
               acc @ expr_instrs
               @ store_with_offset ctx arg_type "sp" new_offset 0 ))
@@ -400,7 +404,7 @@ and gen_declaration ctx stack_used
         | Some defn -> Expr.get_type defn
         | None -> raise (Failure "unreachable"))
   in
-  let stack_required = Type.get_size ctx.struct_mapping decl_type in
+  let stack_required = get_type_size ctx decl_type in
   let offset = stack_used + stack_required in
   let var_map = Map.set ctx.var_map ~key:id ~data:{ offset; typ = decl_type } in
   let curr_scope =
@@ -427,9 +431,7 @@ and gen_declaration ctx stack_used
             let _, struct_push_instrs =
               List.fold struct_info ~init:(0, [])
                 ~f:(fun (cum_size, acc) (_, _type) ->
-                  let size =
-                    cum_size + Type.get_size new_ctx.struct_mapping _type
-                  in
+                  let size = cum_size + get_type_size new_ctx _type in
                   (* Note that x0 stores the area in the stack where we should begin looking *)
                   ( size,
                     acc
@@ -541,7 +543,7 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
       Svc (Const 0);
     ]
   in
-  let struct_mapping = Typing.Type_check.get_struct_map trans in
+  let struct_mapping = get_struct_map trans in
   let empty_ctx =
     {
       var_map = Map.empty (module String);

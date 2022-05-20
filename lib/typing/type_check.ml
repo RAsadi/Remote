@@ -352,7 +352,7 @@ let type_fn struct_map fn_map (fn : Parsed_ast.Fn.t) =
       | Void ->
           (* For all void functions, we sneak in a fake return stmt here *)
           let real_body =
-            Block (span, stmts @ [ Return (Span.new_span (), None) ])
+            Block (span, stmts @ [ Return (Span.new_t (), None) ])
           in
           {
             span = fn.span;
@@ -367,16 +367,6 @@ let type_fn struct_map fn_map (fn : Parsed_ast.Fn.t) =
 let get_fn_sig fn_map (fn : Parsed_ast.Fn.t) =
   let arg_types = List.map fn.args ~f:(fun (_, _, typ) -> typ) in
   Map.set fn_map ~key:fn.id ~data:{ ret = fn.typ; arg_types }
-
-let add_struct struct_map ((_, id, var_list) : Parsed_ast.Struct.t) =
-  let var_list = List.map var_list ~f:(fun (_, id, typ) -> (id, typ)) in
-  Map.set struct_map ~key:id ~data:var_list
-
-let get_struct_map translation_unit =
-  List.fold translation_unit
-    ~init:(Map.empty (module String))
-    ~f:(fun acc arg ->
-      match arg with Fn _ -> acc | Struct s -> add_struct acc s)
 
 let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
   (* functions we get from the stdlib *)

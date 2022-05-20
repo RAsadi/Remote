@@ -1,7 +1,6 @@
-open Ppx_compare_lib.Builtin
-open Sexplib.Std
 open Ast
 open Parsing
+open Base
 
 (* TODO, could just make these generic instead of copying this over from the parsed_ast.*)
 module Expr : sig
@@ -126,3 +125,15 @@ end = struct
 end
 
 type translation_unit = TopLevelElement.t list [@@deriving sexp, compare, equal]
+
+let add_struct struct_map ((_, id, var_list) : Parsed_ast.Struct.t) =
+  let var_list = List.map var_list ~f:(fun (_, id, typ) -> (id, typ)) in
+  Map.set struct_map ~key:id ~data:var_list
+
+let get_struct_map translation_unit =
+  List.fold translation_unit
+    ~init:(Map.empty (module String))
+    ~f:(fun acc arg ->
+      match arg with
+      | TopLevelElement.Fn _ -> acc
+      | Struct s -> add_struct acc s)

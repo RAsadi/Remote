@@ -35,14 +35,3 @@ let can_convert_list type_list1 type_list2 =
       List.fold lst ~init:true ~f:(fun acc (t1, t2) -> acc && can_convert t1 t2)
   | List.Or_unequal_lengths.Unequal_lengths -> false
 
-let rec get_size struct_map _type =
-  match _type with
-  | U32 -> 4
-  | U8 -> 1
-  | Bool -> 1
-  | Void -> 0
-  | Pointer _ -> 8
-  | Struct id ->
-      let members = Map.find_exn struct_map id in
-      List.fold members ~init:0 ~f:(fun acc (_, member) ->
-          acc + get_size struct_map member)
