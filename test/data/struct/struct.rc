@@ -9,5 +9,5 @@ fn main() -> u32 {
     10
   };
   
-  return c.thiccness;
+  return c.thiccness + c.taste;
 }

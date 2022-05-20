@@ -1,0 +1,6 @@
+
+fn main() -> u32 {
+  let ch = 70;
+  __putstr(1, &ch ,1);
+  return 0;
+}
