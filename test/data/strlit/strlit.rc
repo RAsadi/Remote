@@ -1,0 +1,6 @@
+
+fn main() -> u32 {
+  let henlo = "henlo\n";
+  __putstr(1, henlo, 6);
+  return 0;
+}

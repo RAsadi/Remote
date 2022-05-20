@@ -1,4 +1,4 @@
-.global __putstr, __malloc
+.global __putstr, malloc
 .align 4
 
 // args
@@ -21,7 +21,7 @@ __putstr:
 //   pointer to allocated memory
 // clobbers
 //   x8, x16
-__malloc:
+malloc:
   // TODO, make this robust from errors, we want to make it return null if it fails
   mov x1, x0 // Number of bytes to allocate
   // This is a cursed mmap syscall thing

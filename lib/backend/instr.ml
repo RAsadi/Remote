@@ -38,16 +38,17 @@ end = struct
 end
 
 module Operand : sig
-  type t = Reg of Register.t | Const of int
+  type t = Reg of Register.t | Const of int | Label of string
 
   val to_string : t -> string
 end = struct
-  type t = Reg of Register.t | Const of int
+  type t = Reg of Register.t | Const of int | Label of string
 
   let to_string op =
     match op with
     | Reg r -> Register.to_string r
     | Const i -> "#" ^ Int.to_string i
+    | Label s -> s
 end
 
 type label = string
@@ -63,6 +64,7 @@ type t =
   | Orr of Register.t * Register.t * Operand.t
   | And of Register.t * Register.t * Operand.t
   | Mov of Register.t * Operand.t
+  | Adr of Register.t * string
   | Cmp of Register.t * Operand.t
   | Beq of label
   | Bne of label
@@ -111,6 +113,7 @@ let to_string instr =
   | Cmp (r1, op) -> "cmp " ^ Register.to_string r1 ^ ", " ^ Operand.to_string op
   | Mvn (r1, op) -> "mvn " ^ Register.to_string r1 ^ ", " ^ Operand.to_string op
   | Neg (r1, op) -> "neg " ^ Register.to_string r1 ^ ", " ^ Operand.to_string op
+  | Adr (r1, s) -> "adr " ^ Register.to_string r1 ^ ", ." ^ s
   | Beq label -> "beq " ^ label
   | Bne label -> "bne " ^ label
   | B label -> "b " ^ label

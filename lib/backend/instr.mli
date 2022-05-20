@@ -6,7 +6,7 @@ module Register : sig
 end
 
 module Operand : sig
-  type t = Reg of Register.t | Const of int
+  type t = Reg of Register.t | Const of int | Label of string
 
   val to_string : t -> string
 end
@@ -24,6 +24,7 @@ type t =
   | Orr of Register.t * Register.t * Operand.t
   | And of Register.t * Register.t * Operand.t
   | Mov of Register.t * Operand.t
+  | Adr of Register.t * string
   | Cmp of Register.t * Operand.t
   | Beq of label
   | Bne of label

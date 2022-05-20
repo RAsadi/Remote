@@ -102,6 +102,9 @@ let gen_label label_name =
 
 (* We know it has to exist because of type checking *)
 
+(* lol hack *)
+let string_list = ref []
+
 let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
     =
   match expr with
@@ -109,7 +112,11 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       match l with
       | Num i -> Ok [ Instr.Mov (X0, Const i) ]
       | Bool b -> Ok [ Instr.Mov (X0, Const (Bool.to_int b)) ]
-      | Char i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ])
+      | Char i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ]
+      | String s ->
+          let str_label = gen_label "strlit" in
+          string_list := (str_label, String.escaped s) :: !string_list;
+          Ok [ Instr.Adr (X0, str_label) ])
   | Unary (_, _, op, e) -> gen_unary ctx op e
   | Binary (_, _, e1, op, e2) -> gen_binary ctx e1 op e2
   | Var (_, _type, id) -> (
@@ -531,18 +538,6 @@ let gen_fn (ctx : exec_context) (fn : Fn.t) : Instr.t list Or_error.t =
   preamble @ body
 
 let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
-  let premable : Instr.t list =
-    [
-      Raw ".data";
-      Raw ".text";
-      Raw ".globl _start";
-      Raw ".align 4";
-      Raw "_start:";
-      Raw "bl main";
-      Mov (X16, Const 1);
-      Svc (Const 0);
-    ]
-  in
   let struct_mapping = get_struct_map trans in
   let empty_ctx =
     {
@@ -561,5 +556,18 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
             let%map fn_res = gen_fn empty_ctx fn in
             acc @ fn_res
         | Struct _ -> Ok [])
+  in
+  let premable =
+    [ Instr.Raw ".text" ]
+    @ List.map !string_list ~f:(fun (label, str) ->
+          Instr.Raw ("." ^ label ^ ": .string \"" ^ str ^ "\""))
+    @ [
+        Instr.Raw ".globl _start";
+        Instr.Raw ".align 4";
+        Instr.Raw "_start:";
+        Instr.Raw "bl main";
+        Instr.Mov (X16, Const 1);
+        Instr.Svc (Const 0);
+      ]
   in
   premable @ fn_instrs

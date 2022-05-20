@@ -56,7 +56,8 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.Expr.t) :
           let numeric_type = smallest_numeric i in
           Ok (numeric_type, Literal (span, numeric_type, Num i))
       | Bool b -> Ok (Bool, Literal (span, Bool, Bool b))
-      | Char c -> Ok (U8, Literal (span, U8, Char c)))
+      | Char c -> Ok (U8, Literal (span, U8, Char c))
+      | String s -> Ok (Pointer U8, Literal (span, Pointer U8, String s)))
   | Unary (span, op, e) -> type_unary_expr ctx span op e
   | Binary (span, e1, op, e2) -> type_binary_expr ctx span e1 op e2
   | Var (span, id) ->
@@ -374,7 +375,7 @@ let type_translation_unit (translation_unit : Parsed_ast.translation_unit) =
     Map.of_alist_exn
       (module String)
       [
-        ("__malloc", { ret = Pointer U8; arg_types = [ U32 ] });
+        ("malloc", { ret = Pointer U8; arg_types = [ U32 ] });
         ("__putstr", { ret = Void; arg_types = [ U32; Pointer U8; U32 ] });
       ]
   in

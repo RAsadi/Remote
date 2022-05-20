@@ -1,6 +1,6 @@
 
 fn main() -> u32 {
-  let a = __malloc(3 * sizeof(u8));
+  let a = malloc(3 * sizeof(u8));
   a[0] = 5;
   a[1] = 10;
   a[2] = 13;

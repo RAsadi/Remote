@@ -15,6 +15,8 @@ let non_zero_digit = ['1'-'9']
 let digit = '0' | non_zero_digit
 let int = '0' | non_zero_digit digit*
 
+let escape_sequence =
+  '\\' ['\''  '\"'  '?'  '\\'  'n'  'r'  't' ]
 let alpha = ['a'-'z' 'A'-'Z']
 let identifier = (alpha|'_') (alpha|digit|'_')*
 
@@ -37,6 +39,7 @@ rule token = parse
   | "mut" { Mut }
   | "in" { In }
   | "sizeof" { Sizeof }
+  | "as" { As }
 
   | "struct" { Struct }
 
@@ -92,7 +95,12 @@ rule token = parse
   | "true" { Literal (Bool true) }
   | "false" { Literal (Bool false) }
   | int { Literal (Num (int_of_string (Lexing.lexeme lexbuf))) }
-  | '\'' alpha '\'' { Literal (Char (Lexing.lexeme_char lexbuf 1)) }
+  | '\'' (alpha | digit | escape_sequence) '\''
+    {
+      let ch = Lexing.sub_lexeme lexbuf ((Lexing.lexeme_start lexbuf) + 1) ((Lexing.lexeme_end lexbuf) - 1) in
+      Literal (Char (Scanf.unescaped ch).[0] )
+    }
+  | '"' { str (Buffer.create 32) lexbuf }
   | identifier { Iden (Lexing.lexeme lexbuf) }
 
   (* Other *)
@@ -113,3 +121,19 @@ and multi_line_comment = parse
   | newline { incr_linenum lexbuf; multi_line_comment lexbuf }
   | eof { raise (Failure ("EOF in multi line comment")) }
   | _ { multi_line_comment lexbuf }
+
+and str buf = parse
+  | '"'       { Literal (String (Buffer.contents buf)) }
+  | '\\' '\'' { Buffer.add_char buf '\''; str buf lexbuf }
+  | '\\' '\"' { Buffer.add_char buf '\"'; str buf lexbuf }
+  | '\\' '?' { Buffer.add_char buf '?'; str buf lexbuf }
+  | '\\' '\\' { Buffer.add_char buf '\\'; str buf lexbuf }
+  | '\\' 'n'  { Buffer.add_char buf '\n'; str buf lexbuf }
+  | '\\' 'r'  { Buffer.add_char buf '\r'; str buf lexbuf }
+  | '\\' 't'  { Buffer.add_char buf '\t'; str buf lexbuf }
+  | [^ '"' '\\']+
+    { Buffer.add_string buf (Lexing.lexeme lexbuf);
+      str buf lexbuf
+    }
+  | _ { raise (Failure ("Illegal string character: " ^ Lexing.lexeme lexbuf)) }
+  | eof { raise (Failure ("String is not terminated")) }

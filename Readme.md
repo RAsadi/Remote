@@ -24,7 +24,7 @@ then
 should just be desugared to something like 
 
 ```
-let _a_arr_ptr = __malloc(3 * sizeof(array_member));
+let _a_arr_ptr = malloc(3 * sizeof(array_member));
 a^ = 5;
 (a + 1)^ = 10;
 (a + 2)^ = 13;
