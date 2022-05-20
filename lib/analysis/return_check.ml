@@ -1,9 +1,9 @@
-open Typing.Typed_ast
-open Ast
 open Base
 open Base.Result.Let_syntax
+open Typing.Typed_ast
+open Ast
 
-let rec check_stmt (stmt : stmt) : bool =
+let rec check_stmt (stmt : Stmt.t) : bool =
   (* TODO, we can have an extra check here for loops, which can return if they loop forever*)
   match stmt with
   | Assignment _ -> false
@@ -20,7 +20,7 @@ let rec check_stmt (stmt : stmt) : bool =
   | Break _ -> true
   | Continue _ -> true
 
-let check_fn (fn : fn) : unit Or_error.t =
+let check_fn (fn : Fn.t) : unit Or_error.t =
   if Type.equal fn.typ Void then Ok ()
   else
     match check_stmt fn.body with
@@ -33,6 +33,6 @@ let check_translation_unit trans : translation_unit Or_error.t =
   let%map _ =
     List.fold trans ~init:(Ok ()) ~f:(fun acc tl ->
         let%bind _ = acc in
-        match tl with Fn fn -> check_fn fn | Struct _ -> Ok ())
+        match tl with TopLevelElement.Fn fn -> check_fn fn | Struct _ -> Ok ())
   in
   trans

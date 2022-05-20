@@ -4,6 +4,10 @@ open Parsing
 open Base
 open Base.Result.Let_syntax
 open Typed_ast
+open Typed_ast.Expr
+open Typed_ast.Stmt
+open Typed_ast.Fn
+open Typed_ast.TopLevelElement
 
 type var_mapping =
   (string, Type.t * Type.mutability, String.comparator_witness) Map.t
@@ -42,38 +46,8 @@ let lookup_struct ctx id =
   | None -> Or_error.error_string ("Couldn't find struct " ^ id)
   | Some a -> Ok a
 
-let max_u8 = Int.pow 2 8 - 1
-let max_u32 = Int.pow 2 32 - 1
-
-let smallest_numeric i =
-  if i <= max_u8 then U8
-  else if i <= max_u32 then U32
-  else raise (Failure "he numeric too big")
-
-let is_numeric _type = match _type with U8 | U32 -> true | _ -> false
-
-let bigger_numeric _type1 _type2 =
-  match (_type1, _type2) with
-  | U32, U32 | U32, U8 | U8, U32 -> U32
-  | U8, U8 -> U8
-  | _ -> raise (Failure "unreachable")
-
-(* Checks if t2 is convertable to t1. Note this doesn't commute  *)
-let can_convert t1 t2 =
-  let can_widen t1 t2 =
-    is_numeric t1 && is_numeric t2 && Type.equal t1 (bigger_numeric t1 t2)
-  in
-  Type.equal t1 t2 || can_widen t1 t2
-
-(* Checks if type_list2 is convertable to type_list1 *)
-let can_convert_list type_list1 type_list2 =
-  match List.zip type_list1 type_list2 with
-  | Ok lst ->
-      List.fold lst ~init:true ~f:(fun acc (t1, t2) -> acc && can_convert t1 t2)
-  | List.Or_unequal_lengths.Unequal_lengths -> false
-
-let rec type_expr (ctx : ctx) (expr : Parsed_ast.expr) :
-    (Type.t * expr) Or_error.t =
+let rec type_expr (ctx : ctx) (expr : Parsed_ast.Expr.t) :
+    (Type.t * Expr.t) Or_error.t =
   let type_expr = type_expr ctx in
   match expr with
   | Literal (span, l) -> (
@@ -230,8 +204,8 @@ and type_postfix_expr ctx span e op =
   (new_type, PostFix (span, new_type, e, op))
 
 (* TODO we should consider returning an annotated ast here, its not needed for now tho *)
-let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
-    (ctx * stmt) Or_error.t =
+let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.Stmt.t) :
+    (ctx * Stmt.t) Or_error.t =
   let type_stmt = type_stmt ret_type in
   match stmt with
   | Block (span, stmts) ->
@@ -360,7 +334,7 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.stmt) :
       else Or_error.error_string "Invalid assignment"
   | For _ -> Or_error.error_string "TODO"
 
-let type_fn struct_map fn_map (fn : Parsed_ast.fn) =
+let type_fn struct_map fn_map (fn : Parsed_ast.Fn.t) =
   let var_map =
     List.fold fn.args
       ~init:(Map.empty (module String))
@@ -390,11 +364,11 @@ let type_fn struct_map fn_map (fn : Parsed_ast.fn) =
       | _ -> { span = fn.span; id = fn.id; args = fn.args; typ = fn.typ; body })
   | _ -> raise (Failure "unreachable")
 
-let get_fn_sig fn_map (fn : Parsed_ast.fn) =
+let get_fn_sig fn_map (fn : Parsed_ast.Fn.t) =
   let arg_types = List.map fn.args ~f:(fun (_, _, typ) -> typ) in
   Map.set fn_map ~key:fn.id ~data:{ ret = fn.typ; arg_types }
 
-let add_struct struct_map ((_, id, var_list) : Parsed_ast._struct) =
+let add_struct struct_map ((_, id, var_list) : Parsed_ast.Struct.t) =
   let var_list = List.map var_list ~f:(fun (_, id, typ) -> (id, typ)) in
   Map.set struct_map ~key:id ~data:var_list
 
