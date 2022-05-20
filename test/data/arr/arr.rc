@@ -1,5 +1,5 @@
 fn main() -> u32 {
   let x = ['a', 'b', 'c'];
-  __putstr(x, 3);
+  __putstr(1, x, 3);
   return 0;
 }

@@ -1,5 +1,4 @@
 
-
 fn main() -> u32 {
   let a = __malloc(3 * sizeof(u8));
   a^ = 5;

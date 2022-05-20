@@ -49,6 +49,8 @@ rule token = parse
   | '}' { RBrace }
   | '(' { LParen }
   | ')' { RParen }
+  | '[' { LSquare }
+  | ']' { RSquare }
   | ';' { Semi }
   | ':' { Colon }
   | "->" { Arrow }

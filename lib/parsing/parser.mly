@@ -31,6 +31,8 @@
 %token RBrace
 %token LParen
 %token RParen
+%token LSquare
+%token RSquare
 %token Semi
 %token Colon
 %token Arrow
@@ -162,6 +164,8 @@ let primary_expr :=
   | LParen; ~ = expr; RParen; <>
   | id = Iden; LParen; args = separated_list(Comma, expr); RParen; { Call (($startpos, $endpos), id, args) }
   | id = Iden; LBrace; inits = separated_list(Comma, expr); RBrace; { Initializer (($startpos, $endpos), id, inits) }
+  | id = Iden; LSquare; inner = expr; RSquare;
+    { Expr.PostFix(($startpos, $endpos), Expr.Binary (($startpos, $endpos), Var (($startpos, $endpos), id), Plus, inner), Deref) }
 
 let postfix_expr :=
   | primary_expr
