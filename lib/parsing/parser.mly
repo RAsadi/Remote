@@ -20,6 +20,7 @@
 %token In
 %token Sizeof
 %token Struct
+%token As
 
 // Types
 %token U32
@@ -162,6 +163,8 @@ let primary_expr :=
   | i = Iden; { Var (($startpos, $endpos), i) }
   | lit = Literal; { Literal (($startpos, $endpos), lit) }
   | LParen; ~ = expr; RParen; <>
+  (* parens to appease the parser gods is a bit nasty, fix *)
+  | LParen; expr = expr; As; typ = type_name; RParen; { Cast (($startpos, $endpos), expr, typ) }
   | id = Iden; LParen; args = separated_list(Comma, expr); RParen; { Call (($startpos, $endpos), id, args) }
   | id = Iden; LBrace; inits = separated_list(Comma, expr); RBrace; { Initializer (($startpos, $endpos), id, inits) }
   | id = Iden; LSquare; inner = expr; RSquare;

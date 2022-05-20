@@ -1,19 +1,22 @@
 
 fn main() -> u32 {
   let list_size = 10;
-  let list: u32^ = malloc(list_size * sizeof(u32)) as u32^;
+  let list: u32^ = (malloc(list_size * sizeof(u32)) as u32^);
 
   let mut i = 0;
   while (i < list_size) {
     list[i] = i;
-    i++;
+    i = i + 1;
   }
 
   i = 0;
   while (i < list_size) {
-    let ch = '0' + list[i];
+    let ch = ('0' + list[i] as u8);
     __putstr(1, &ch, 1);
+    i = i + 1;
   }
 
+  let ch = '\n';
+  __putstr(1, &ch, 1);
   return 0;
 }

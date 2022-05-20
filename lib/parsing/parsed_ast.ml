@@ -13,6 +13,7 @@ module Expr : sig
     | PostFix of Span.t * t * Operator.postfix
     | FieldAccess of Span.t * t * Identifier.t
     | Initializer of Span.t * Identifier.t * t list
+    | Cast of Span.t * t * Type.t
   [@@deriving sexp, compare, equal]
 end = struct
   type t =
@@ -25,6 +26,7 @@ end = struct
     | PostFix of Span.t * t * Operator.postfix
     | FieldAccess of Span.t * t * Identifier.t
     | Initializer of Span.t * Identifier.t * t list
+    | Cast of Span.t * t * Type.t
   [@@deriving sexp, compare, equal]
 end
 

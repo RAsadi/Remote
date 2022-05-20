@@ -197,6 +197,10 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       @ push_instrs
       @ [ Instr.Sub (Sp, Sp, Const stack_move_amt) ]
       @ [ Instr.Mov (X0, Reg X7) ]
+  | Cast (_, _type, inner, _) ->
+      (* TODO maybe some actual logic in here *)
+      let%map inner_instrs = gen_expr ctx inner in
+      inner_instrs
 
 and gen_postfix ctx _type expr op =
   let%map ex = gen_expr ctx expr in

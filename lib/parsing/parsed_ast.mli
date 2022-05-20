@@ -1,16 +1,17 @@
+open Ast
+
 module Expr : sig
   type t =
-    | Literal of Span.t * Ast.Literal.t
-    | Unary of Span.t * Ast.Operator.unary * t
-    | Sizeof of Span.t * Ast.Type.t
-    | Binary of Span.t * t * Ast.Operator.binary * t
+    | Literal of Span.t * Literal.t
+    | Unary of Span.t * Operator.unary * t
+    | Sizeof of Span.t * Type.t
+    | Binary of Span.t * t * Operator.binary * t
     | Var of Span.t * string
     | Call of Span.t * string * t list
-    | PostFix of Span.t * t * Ast.Operator.postfix
+    | PostFix of Span.t * t * Operator.postfix
     | FieldAccess of Span.t * t * string
     | Initializer of Span.t * string * t list
-
-  val t_of_sexp : Sexplib0.Sexp.t -> t
+    | Cast of Span.t * t * Type.t
 end
 
 module Stmt : sig
@@ -28,21 +29,21 @@ module Stmt : sig
 
   and declaration = {
     span : Span.t;
-    mut : Ast.Type.mutability;
+    mut : Type.mutability;
     id : string;
-    type_annotation : Ast.Type.t option;
+    type_annotation : Type.t option;
     defn : Expr.t option;
   }
 end
 
-type typed_var = Span.t * string * Ast.Type.t
+type typed_var = Span.t * string * Type.t
 
 module Fn : sig
   type t = {
     span : Span.t;
     id : string;
     args : typed_var list;
-    typ : Ast.Type.t;
+    typ : Type.t;
     body : Stmt.t;
   }
 end

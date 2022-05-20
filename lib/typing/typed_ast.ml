@@ -14,6 +14,7 @@ module Expr : sig
     | PostFix of Span.t * Type.t * t * Operator.postfix
     | FieldAccess of Span.t * Type.t * t * Identifier.t
     | Initializer of Span.t * Type.t * Identifier.t * t list
+    | Cast of Span.t * Type.t * t * Type.t
   [@@deriving sexp, compare, equal]
 
   val get_type : t -> Type.t
@@ -28,6 +29,7 @@ end = struct
     | PostFix of Span.t * Type.t * t * Operator.postfix
     | FieldAccess of Span.t * Type.t * t * Identifier.t
     | Initializer of Span.t * Type.t * Identifier.t * t list
+    | Cast of Span.t * Type.t * t * Type.t
   [@@deriving sexp, compare, equal]
 
   let get_type expr =
@@ -41,6 +43,7 @@ end = struct
     | PostFix (_, typ, _, _) -> typ
     | FieldAccess (_, typ, _, _) -> typ
     | Initializer (_, typ, _, _) -> typ
+    | Cast (_, typ, _, _) -> typ
 end
 
 module Stmt : sig

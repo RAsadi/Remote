@@ -82,6 +82,12 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.Expr.t) :
   | PostFix (span, e, op) -> type_postfix_expr ctx span e op
   | FieldAccess (span, expr, id) -> type_field_access ctx span expr id
   | Initializer (span, id, inits) -> type_initializer ctx span id inits
+  | Cast (span, e, t) -> type_cast ctx span e t
+
+(* TODO proper typing, rn all casts are reinterpret casts *)
+and type_cast ctx span e t =
+  let%map _expr_t, typed_expr = type_expr ctx e in
+  (t, Cast (span, t, typed_expr, t))
 
 and type_sizeof span t = Ok (U32, Sizeof (span, U32, t))
 
