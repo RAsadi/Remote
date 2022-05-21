@@ -1,0 +1,8 @@
+
+fn main() -> u32 {
+  let mut x = 0;
+  for (let mut i = 0; i < 10; i++) {
+    x = x + i;
+  }
+  return x;
+}

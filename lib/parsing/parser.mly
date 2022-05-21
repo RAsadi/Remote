@@ -17,7 +17,6 @@
 %token Fn
 %token Let
 %token Mut
-%token In
 %token Sizeof
 %token Struct
 %token As
@@ -151,7 +150,7 @@ let iteration_stmt :=
   | for_stmt
   | while_stmt
 
-let for_stmt := For; LParen; id = Iden; In; cond = expr; RParen; body = compound_stmt; { Stmt.For (($startpos, $endpos), id, cond, body) }
+let for_stmt := For; LParen; assign = declaration_stmt; cond = expr; Semi; post = expr; RParen; body = compound_stmt; { Stmt.For (($startpos, $endpos), assign, cond, post, body) }
 
 let while_stmt := While; LParen; cond = expr; RParen; body = compound_stmt;
   { Stmt.While (($startpos, $endpos), cond, body) }

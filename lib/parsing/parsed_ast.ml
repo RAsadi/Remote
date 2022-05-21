@@ -38,7 +38,7 @@ module Stmt : sig
     | Block of Span.t * t list
     | If of Span.t * Expr.t * t * t option
     | While of Span.t * Expr.t * t
-    | For of Span.t * Identifier.t * Expr.t * t
+    | For of Span.t * t * Expr.t * Expr.t * t
     | Return of Span.t * Expr.t option
     | Break of Span.t
     | Continue of Span.t
@@ -59,7 +59,7 @@ end = struct
     | Block of Span.t * t list
     | If of Span.t * Expr.t * t * t option
     | While of Span.t * Expr.t * t
-    | For of Span.t * Identifier.t * Expr.t * t
+    | For of Span.t * t * Expr.t * Expr.t * t
     | Return of Span.t * Expr.t option
     | Break of Span.t
     | Continue of Span.t

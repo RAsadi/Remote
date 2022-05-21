@@ -1,3 +1,14 @@
+/*
+Doesn't yet compile, but a hypothetical syntax for array literal
+
+In theory, we could just desugar this to something like
+let a = malloc(3 * sizeof(u8));
+a^ = 'a';
+(a + 1)^ = 'b';
+(a + 2)^ = 'c';
+
+*/
+
 fn main() -> u32 {
   let x = ['a', 'b', 'c'];
   __putstr(1, x, 3);

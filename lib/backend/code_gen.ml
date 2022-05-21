@@ -19,6 +19,11 @@ type exec_context = {
   break_label : string option;
 }
 
+let print_map (var_map : variable_mapping) =
+  Map.iter_keys var_map ~f:(fun k ->
+      let { offset; _ } = Map.find_exn var_map k in
+      Stdio.print_endline (k ^ ": " ^ Int.to_string offset))
+
 let rec get_type_size ctx _type =
   match _type with
   | U32 -> 4
@@ -115,7 +120,7 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       | Char i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ]
       | String s ->
           let str_label = gen_label "strlit" in
-          string_list := (str_label, String.escaped s) :: !string_list;
+          string_list := (str_label, s) :: !string_list;
           Ok [ Instr.Adr (X0, str_label) ])
   | Unary (_, _, op, e) -> gen_unary ctx op e
   | Binary (_, _, e1, op, e2) -> gen_binary ctx e1 op e2
@@ -203,13 +208,22 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       inner_instrs
 
 and gen_postfix ctx _type expr op =
-  let%map ex = gen_expr ctx expr in
-  ex
-  @
+  let%bind ex = gen_expr ctx expr in
+  let get_var () =
+    match expr with
+    | Var (_, typ, id) -> (typ, id)
+    | _ -> raise (Failure "unreachable")
+  in
   match op with
-  | Deref -> load_from_offset ctx _type "x0" 0 0
-  | Incr -> [ Instr.Raw "add x0, x0, #1" ]
-  | Decr -> [ Instr.Raw "sub x0, x0, #1" ]
+  | Deref -> Ok (ex @ load_from_offset ctx _type "x0" 0 0)
+  | Incr ->
+      let var_type, var_id = get_var () in
+      let%map store_instrs = store_var ctx var_type var_id in
+      ex @ [ Instr.Raw "add x0, x0, #1" ] @ store_instrs
+  | Decr ->
+      let var_type, var_id = get_var () in
+      let%map store_instrs = store_var ctx var_type var_id in
+      ex @ [ Instr.Raw "sub x0, x0, #1" ] @ store_instrs
 
 and gen_unary ctx op expr =
   let%bind ex = gen_expr ctx expr in
@@ -350,7 +364,8 @@ let rec gen_stmt (ctx : exec_context) (stack_used : int) (stmt : Stmt.t) :
       (ctx, stack_used, e)
   | If (_, cond, if_true, if_false) ->
       gen_if ctx stack_used cond if_true if_false
-  | For _ -> Ok (ctx, stack_used, []) (* TODO *)
+  | For (_, decl, cond, post, body) ->
+      gen_for ctx stack_used decl cond post body
   | While (_, cond, body) -> gen_while ctx stack_used cond body
   | Return (_, e) -> gen_return ctx stack_used e
   | Break _ -> (
@@ -363,6 +378,34 @@ let rec gen_stmt (ctx : exec_context) (stack_used : int) (stmt : Stmt.t) :
       | None -> Or_error.error_string "Cannot use break in this context")
   | Declaration a -> gen_declaration ctx stack_used a
   | Assignment (_, id, expr) -> gen_assignment ctx stack_used id expr
+
+and gen_for ctx stack_used decl cond post body =
+  let start_label = gen_label "for_start" in
+  let end_label = gen_label "for_end" in
+  let post_label = gen_label "for_post" in
+  let with_cont_break =
+    {
+      curr_scope = ctx.curr_scope;
+      var_map = ctx.var_map;
+      struct_mapping = ctx.struct_mapping;
+      break_label = Some end_label;
+      continue_label = Some post_label;
+    }
+  in
+  let%bind new_ctx, stack_used, decl_instrs =
+    gen_stmt with_cont_break stack_used decl
+  in
+  let%bind _, stack_used, body_instrs = gen_stmt new_ctx stack_used body in
+  let%bind cond = gen_expr new_ctx cond in
+  let%map post = gen_expr new_ctx post in
+  ( ctx,
+    stack_used,
+    decl_instrs
+    @ [ Instr.Label start_label ]
+    @ cond
+    @ [ Instr.Cmp (X0, Const 0); Instr.Beq end_label ]
+    @ body_instrs @ [ Instr.Label post_label ] @ post
+    @ [ Instr.B start_label; Instr.Label end_label ] )
 
 and gen_while ctx stack_used cond body =
   let start_label = gen_label "while_start" in
@@ -512,8 +555,6 @@ let gen_fn (ctx : exec_context) (fn : Fn.t) : Instr.t list Or_error.t =
   in
   (* 16 bytes is always reserved at the start for fp *)
   let%bind ctx, stack_required, arg_instrs = gen_stmt ctx 16 arg_stmts in
-  Stdio.print_endline @@ "stack_required for args "
-  ^ Int.to_string stack_required;
   assert (List.is_empty arg_instrs);
   let%bind arg_ldr =
     List.foldi fn.args ~init:(Ok []) ~f:(fun idx acc (_, id, _type) ->
@@ -521,7 +562,7 @@ let gen_fn (ctx : exec_context) (fn : Fn.t) : Instr.t list Or_error.t =
         let%map { offset; _ } = lookup_var ctx id in
         acc @ store_with_offset ctx _type "fp" offset idx)
   in
-  let%map _, stack_required, body = gen_stmt ctx stack_required fn.body in
+  let%map _ctx, stack_required, body = gen_stmt ctx stack_required fn.body in
   let preamble : Instr.t list =
     [
       Instr.Label fn.id;
@@ -531,14 +572,11 @@ let gen_fn (ctx : exec_context) (fn : Fn.t) : Instr.t list Or_error.t =
     @ arg_ldr
     @
     if stack_required > 0 then (
-      Stdio.print_endline @@ "stack_required for body "
-      ^ Int.to_string stack_required;
       let stack_required = Int.round_up ~to_multiple_of:16 stack_required in
-      Stdio.print_endline @@ "stack_required rounded "
-      ^ Int.to_string stack_required;
       [ Instr.Sub (Sp, Sp, Const stack_required) ])
     else []
   in
+  (* print_map _ctx.var_map; *)
   preamble @ body
 
 let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
@@ -564,7 +602,7 @@ let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =
   let premable =
     [ Instr.Raw ".text" ]
     @ List.map !string_list ~f:(fun (label, str) ->
-          Instr.Raw ("." ^ label ^ ": .string \"" ^ str ^ "\""))
+          Instr.Raw (".align 4\n." ^ label ^ ": .string \"" ^ str ^ "\""))
     @ [
         Instr.Raw ".globl _start";
         Instr.Raw ".align 4";

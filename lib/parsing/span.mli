@@ -8,3 +8,5 @@ type lexing_pos = Lexing.position = {
 type t = lexing_pos * lexing_pos [@@deriving sexp, compare, equal]
 
 val new_t : unit -> lexing_pos * lexing_pos
+
+val to_string : t -> string

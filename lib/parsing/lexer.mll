@@ -37,7 +37,6 @@ rule token = parse
   | "fn" { Fn }
   | "let" { Let }
   | "mut" { Mut }
-  | "in" { In }
   | "sizeof" { Sizeof }
   | "as" { As }
 

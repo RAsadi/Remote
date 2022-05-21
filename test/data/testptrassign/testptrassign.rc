@@ -1,0 +1,30 @@
+fn print(ch: u8^, size: u8) {
+  __putstr(1, ch, size);
+}
+
+fn print_digit(i: u8) {
+  let ch = '0' + i;
+  print(&ch, 1);
+}
+
+fn main() -> u32 {
+  let first = malloc(10);
+  let second = malloc(10);
+
+  for (let mut i = 0; i < 10; i++) {
+    (second + i)^ = i;
+  }
+
+  for (let mut i = 0; i < 10; i++) {
+    (first + i)^ = (second + i)^;
+    // let x = 10;
+    (second + i)^ = 1;
+  }
+
+  for (let mut i = 0; i < 10; i++) {
+    print_digit((first + i)^);
+  }
+
+  return 0;
+
+}

@@ -6,11 +6,11 @@ module Expr : sig
     | Unary of Span.t * Operator.unary * t
     | Sizeof of Span.t * Type.t
     | Binary of Span.t * t * Operator.binary * t
-    | Var of Span.t * string
-    | Call of Span.t * string * t list
+    | Var of Span.t * Identifier.t
+    | Call of Span.t * Identifier.t * t list
     | PostFix of Span.t * t * Operator.postfix
-    | FieldAccess of Span.t * t * string
-    | Initializer of Span.t * string * t list
+    | FieldAccess of Span.t * t * Identifier.t
+    | Initializer of Span.t * Identifier.t * t list
     | Cast of Span.t * t * Type.t
 end
 
@@ -22,7 +22,7 @@ module Stmt : sig
     | Block of Span.t * t list
     | If of Span.t * Expr.t * t * t option
     | While of Span.t * Expr.t * t
-    | For of Span.t * string * Expr.t * t
+    | For of Span.t * t * Expr.t * Expr.t * t
     | Return of Span.t * Expr.t option
     | Break of Span.t
     | Continue of Span.t
@@ -30,18 +30,18 @@ module Stmt : sig
   and declaration = {
     span : Span.t;
     mut : Type.mutability;
-    id : string;
+    id : Identifier.t;
     type_annotation : Type.t option;
     defn : Expr.t option;
   }
 end
 
-type typed_var = Span.t * string * Type.t
+type typed_var = Span.t * Identifier.t * Type.t
 
 module Fn : sig
   type t = {
     span : Span.t;
-    id : string;
+    id : Identifier.t;
     args : typed_var list;
     typ : Type.t;
     body : Stmt.t;
@@ -49,7 +49,7 @@ module Fn : sig
 end
 
 module Struct : sig
-  type t = Span.t * string * typed_var list
+  type t = Span.t * Identifier.t * typed_var list
 end
 
 module TopLevelElement : sig

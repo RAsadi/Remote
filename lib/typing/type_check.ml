@@ -136,12 +136,12 @@ and type_binary_expr ctx span e1 op e2 =
           Ok (bigger_numeric _type1 _type2)
         else Or_error.error_string "cannot do arithmetic on non-numeric types"
     (* Bitwise *)
+    | LAnd, Bool, Bool -> Ok Bool
+    | LOr, Bool, Bool -> Ok Bool
     | LShift, _, _ | RShift, _, _ | And, _, _ | Or, _, _ | Xor, _, _ ->
         if is_numeric _type1 && is_numeric _type2 then
           Ok (bigger_numeric _type1 _type2)
-        else Or_error.error_string "cannot do bitwise on non-numeric types"
-    | LAnd, Bool, Bool -> Ok Bool
-    | LOr, Bool, Bool -> Ok Bool
+        else Or_error.error_string (Span.to_string span ^ "cannot do bitwise on non-numeric types")
     (* Equality *)
     | Eq, Bool, Bool -> Ok Bool
     | Neq, Bool, Bool -> Ok Bool
@@ -247,6 +247,20 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.Stmt.t) :
           let%map _, typed_if_false = type_stmt ctx if_false in
           (ctx, If (span, typed_cond, typed_if_true, Some typed_if_false))
       | None -> Ok (ctx, If (span, typed_cond, typed_if_true, None)))
+  | For (span, decl, cond, post, body) ->
+      let ctx =
+        {
+          var_map = ctx.var_map;
+          curr_scope = Map.empty (module String);
+          fn_map = ctx.fn_map;
+          struct_map = ctx.struct_map;
+        }
+      in
+      let%bind ctx, typed_decl = type_stmt ctx decl in
+      let%bind _, typed_cond = type_expr ctx cond in
+      let%bind _, typed_post = type_expr ctx post in
+      let%map _, typed_body = type_stmt ctx body in
+      (ctx, For (span, typed_decl, typed_cond, typed_post, typed_body))
   | While (span, cond, body) ->
       let%bind _, typed_cond = type_expr ctx cond in
       let%map _, typed_body = type_stmt ctx body in
@@ -339,7 +353,6 @@ let rec type_stmt ret_type (ctx : ctx) (stmt : Parsed_ast.Stmt.t) :
       in
       if is_valid then Ok (ctx, Assignment (span, typed_lhs, typed_expr))
       else Or_error.error_string "Invalid assignment"
-  | For _ -> Or_error.error_string "TODO"
 
 let type_fn struct_map fn_map (fn : Parsed_ast.Fn.t) =
   let var_map =
