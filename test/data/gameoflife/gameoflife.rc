@@ -16,9 +16,6 @@ fn count_live_neighbour(board: u8^, r: u8, c: u8, rows: u8, cols: u8) -> u8 {
       let row = r + i - 1;
       let col = c + j - 1;
       if (row < rows && col < cols && (row != r || col != c)) {
-          // print_digit(row);
-          // print_digit(col);
-          // print(", ", 2);
         if (board[row * cols + col] == 1) {
           count++;
         }
