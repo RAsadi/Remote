@@ -18,11 +18,13 @@ Currently, one of the tests fails, due to a planned but unimplemented feature
 
 # Demo
 
-A series of sample programs exist in `demo/`
+A series of sample remote programs exist in `demo/`
 
 Here are a few of them
 
-### fibonacci
+### Fibonacci
+
+#### Code
 
 ```
 fn fibonacci(n: u32) -> u32 {
@@ -41,7 +43,14 @@ fn main() -> u32 {
 }
 ```
 
-### is_prime
+#### Output
+```
+55
+```
+
+### Is Prime
+
+#### Code
 
 ```
 fn is_prime(n: u32) -> bool {
@@ -73,7 +82,14 @@ fn main() -> u32 {
 }
 ```
 
+#### Output
+```
+273 is not prime
+```
+
 ### sum_linked_list
+
+#### Code
 ```
 struct node {
   next: node^,
@@ -102,6 +118,12 @@ fn main() -> u32 {
   return 0;
 }
 ```
+
+#### Output
+```
+5
+```
+
 # Full feature description
 
 ## Expressions

@@ -223,7 +223,7 @@ and gen_postfix ctx _type expr op =
   match op with
   | Deref -> (
       match _type with
-      | Struct t -> Ok ex
+      | Struct _ -> Ok ex (* Should be a pointer to the start of the struct here *)
       | _ -> Ok (ex @ load_from_offset ctx _type "x0" 0 0))
   | Incr ->
       let var_type, var_id = get_var () in
