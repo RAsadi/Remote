@@ -1,6 +1,6 @@
 # 🎮 Remote
 
-Remote is a simple, C-like language, created because I wanted to write a C compiler for fun, but the grammar of C got to be a bit too weird at some point.
+Remote is a simple, C-like language, created because I wanted to write a C compiler for fun, but the grammar of C got a bit too weird at some point.
 
 So, I designed a language that behaves a lot like C, but with an easier to understand, LALR(1) grammar
 
