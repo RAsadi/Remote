@@ -1,22 +1,23 @@
-# Remote
+# Remote 🎮 
+## A C-like Language
 
 Compiler for a simple, C-like language. Created because I wanted to write a C compiler for fun, but the grammar of C got to be a bit too weird at some point.
 
 So, I designed a language that behaves a lot like C, but with an easier to understand, LR(1) grammar
 
-# Running
+# Running 🏃‍♂️
 
 `dune exec remote <path to file.rc>`
 
 Then, the compiled file will be in `build/<filename>`
 
-# Test
+# Test 🧪
 
 `python3 test/test.py`
 
 Currently, one of the tests fails, due to a planned but unimplemented feature
 
-# Demo
+# Demo 📝
 
 A series of sample remote programs exist in `demo/`
 
@@ -124,7 +125,7 @@ fn main() -> u32 {
 5
 ```
 
-# Full feature description
+# Full feature description 💼
 
 ## Expressions
 
