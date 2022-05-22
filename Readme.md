@@ -1,23 +1,22 @@
-# Remote 🎮 
-## A C-like Language
+# 🎮 Remote
 
-Compiler for a simple, C-like language. Created because I wanted to write a C compiler for fun, but the grammar of C got to be a bit too weird at some point.
+Remote is a simple, C-like language, created because I wanted to write a C compiler for fun, but the grammar of C got to be a bit too weird at some point.
 
-So, I designed a language that behaves a lot like C, but with an easier to understand, LR(1) grammar
+So, I designed a language that behaves a lot like C, but with an easier to understand, LALR(1) grammar
 
-# Running 🏃‍♂️
+# 🏃‍♂️ Running
 
 `dune exec remote <path to file.rc>`
 
 Then, the compiled file will be in `build/<filename>`
 
-# Test 🧪
+# 🧪 Test
 
 `python3 test/test.py`
 
 Currently, one of the tests fails, due to a planned but unimplemented feature
 
-# Demo 📝
+# 📝 Demo
 
 A series of sample remote programs exist in `demo/`
 
@@ -45,6 +44,7 @@ fn main() -> u32 {
 ```
 
 #### Output
+
 ```
 55
 ```
@@ -84,13 +84,15 @@ fn main() -> u32 {
 ```
 
 #### Output
+
 ```
 273 is not prime
 ```
 
-### sum_linked_list
+### Linked list
 
 #### Code
+
 ```
 struct node {
   next: node^,
@@ -121,115 +123,250 @@ fn main() -> u32 {
 ```
 
 #### Output
+
 ```
 5
 ```
 
-# Full feature description 💼
+# 💼 Full feature description
+
+## Types
+
+Remote currently supports the following types
+
+| Type        | Description                                                     |
+| ----------- | --------------------------------------------------------------- |
+| u8          | An 8-bit, unsigned integer                                      |
+| u32         | A 32-bit, unsigned integer                                      |
+| bool        | A boolean value, either true or false                           |
+| t^          | A pointer to a type t. You can take a pointer of any other type |
+| struct_name | A struct type. See below for more information                   |
+
+### Structs
+
+#### Description
+
+A struct is a C-like struct, essentially a user defined data type containing other types.
+
+#### Example
+
+```
+struct node {
+  data: u32,
+  next: node^
+}
+
+fn main() {
+  let example_node = node{10, null};
+  // example_node.next is null, and example.data is 10
+}
+```
+
+#### Notes
+
+Structs currently cannot be returned from functions.
+
+## Variables
+
+### Description
+
+Remote has support for variables. Currently, all variables are immutable by default, but can be
+made mutable by the `mut` keyword. Types for variables can be inferred by their initialier, or can be explictly annotated. Variables are bound to their block scope, like in C.
+
+### Example
+
+```
+
+fn main() -> u32 {
+  let v1 = 10;            // v1 has type u8, as the literal 10 has type u8
+  let v2: u32 = 10;       // v2 has type u32, since the literal 10 can be implicitly converted to u32
+  let mut v3: u32 = 10;  // v3 is a mutable u32
+  v3 = v2 + 1;           // v3 is now 11
+  v2 = v3;               // Will error, since v2 is immutable
+}
+```
+
+## Functions
+
+### Description
+
+Remote has support for functions, declared with the `fn` keyword. They are not first class values in Remote, and can only be called right now.
+
+The main function, which returns a u32, is the entry point for the program.
+
+### Example
+
+```
+// f1 is a function which takes in a u32, and a pointer to a u32, and returns a boolean value
+fn f1(x: u32, z: u32^) -> bool {
+
+}
+
+// f1 can be called like:
+// let x = 10;
+// let res: bool = f1(10, &x);
+```
+
+## Statements
+
+### If
+
+#### Description
+
+Exactly like a C-style if statement.
+
+#### Example
+
+```
+if (cond1 || cond2) {
+  do_something();
+} else if (cond3) {
+  do_another_thing();
+} else {
+  do_a_third_thing();
+}
+```
+
+### While
+
+#### Description
+
+Exactly like a C-style while loop
+
+#### Example
+
+```
+while(cond1) {
+  if (cond2) {
+    continue;
+  }
+  do_something();
+  break;
+}
+```
+
+### For
+
+#### Description
+
+Exactly like a C-style for loop, but must have a declarator, condition, and post expression
+
+#### Example
+
+```
+for(let mut i = 0; i < 10; i++) {
+  if (i % 2 == 0) {
+    continue;
+  }
+  do_something(i);
+}
+```
 
 ## Expressions
 
+### Literals
+
+| Literal   | Description                                                                | Example                           |
+| --------- | -------------------------------------------------------------------------- | --------------------------------- |
+| Character | Character literal, has type `u8`                                           | `let ch = 'a';`                   |
+| String    | String literal, has type `u8^`                                             | `let str = "hello";`              |
+| Number    | Number literal, has type `u8`, or `u32` if the literal won't fit in a `u8` | `let n = 1024;`                   |
+| Bool      | Boolean literal, has type bool                                             | `let yes = true; let no = false;` |
+
 ### Unary
 
-- & - Takes the address of a variable
-
-  `let x = 10; let y = &x;`
-
-- ! - Logical not
-
-  `let truthy = !false;`
-
-- \- - Negate
-
-  `let negative = -10;`
-
-  Note, currently doesn't work since there is no signed number type
-
-- ~ - Bitwise not
-
-  `let bitnot = ~10`;
+| Operator | Description                     | Example                   |
+| -------- | ------------------------------- | ------------------------- |
+| &        | Takes the address of a variable | `let x = 10; let y = &x;` |
+| \|       | Logical not                     | `let truthy = !false;`    |
+| -        | Negate                          | `let negative = -10;`     |
+| ~        | Bitwise not                     | `let bitnot = ~10;`       |
 
 ### Binary
 
 #### Arithmetic
 
-- \+ - Add
-
-  `let sum = 10 + 2;`
-
-- \- - Subtract
-
-  `let diff = 10 - 2;`
-
-- \* - Multiply
-
-  `let product = 10 * 2;`
-
-- / - Divide
-
-  `let div = 20 / 10;`
-
-- % - Modulo
-
-  `let mod = 20 % 10;`
+| Operator | Description | Example                 |
+| -------- | ----------- | ----------------------- |
+| \+       | Add         | `let sum = 10 + 2;`     |
+| \|       | Subtract    | `let diff = 10 - 2;`    |
+| \*       | Multiply    | `let product = 10 * 2;` |
+| /        | Divide      | `let div = 20 / 10;`    |
+| %        | Modulo      | `let mod = 20 % 10;`    |
 
 #### Bitwise
 
-- << - Left shift
-
-  `let times2 = 10 << 1;`
-
-- \>> - Right shift
-
-  `let div2 = 10 >> 1;`
-
-- & - And
-
-  `let bitwise_and = 10 & 2;`
-
-- | - Or
-
-  `let bitwise_or = 10 | 2;`
-
-- ^ - Exclusive Or
-
-  `let bitwise_xor = 10 ^ 2;`
+| Operator | Description  | Example                     |
+| -------- | ------------ | --------------------------- |
+| <<       | Left shift   | `let times2 = 10 << 1;`     |
+| \>>      | Right shift  | `let div2 = 10 >> 1;`       |
+| &        | And          | `let bitwise_and = 10 & 2;` |
+| \|       | Or           | `let bitwise_or = 10 \| 2;` |
+| ^        | Exclusive Or | `let bitwise_xor = 10 ^ 2;` |
 
 #### Logical
 
-- || - Or
-
-  `let logical_or = true || false;`
-
-- && - And
-
-  `let logical_and = true && false;`
+| Operator | Description | Example                             |
+| -------- | ----------- | ----------------------------------- |
+| \|\|     | Or          | `let logical_or = true \|\| false;` |
+| &&       | And         | `let logical_and = true && false;`  |
 
 #### Comparison
 
-- == - Equal
+| Operator | Description              | Example             |
+| -------- | ------------------------ | ------------------- |
+| ==       | Equal                    | `let eq = 1 == 1;`  |
+| !=       | Not equal                | `let neq = 1 != 1;` |
+| <        | Less than                | `let lt = 1 < 2;`   |
+| <=       | Less than or equal to    | `let lte = 1 <= 2;` |
+| \>       | Greater than             | `let gt = 1 > 2;`   |
+| \>       | Greater than or equal to | `let gte = 1 >= 2;` |
 
-  `let eq = 1 == 1;`
+### Postfix
 
-- != - Not equal
+| Operator | Description | Example                              |
+| -------- | ----------- | ------------------------------------ |
+| ++       | Increment   | `let x = 10; x++;`                   |
+| --       | Decrement   | `let y = 10; y--;`                   |
+| ^        | Dereference | `let x = 1; let y = &x; let z = y^;` |
 
-  `let neq = 1 != 1;`
+### Sizeof
 
-- < - Less than
+#### Description
 
-  `let lt = 1 < 2;`
+A builtin function which returns the size of an expression or type.
 
-- <= - Less than or equal to
+#### Example
 
-  `let lt = 1 <= 2;`
+```
+struct example_struct {
+  member1: u32,
+  member2: u8
+}
 
-- \> - Greater than
+fn main() -> u32 {
+  let x = sizeof(example_struct); // x should be 5, since example struct is 5 bytes in size
+  let y = sizeof(x); // y should be 4, since sizeof returns a u32, so x is 4 bytes in size
+}
+```
 
-  `let lt = 1 > 2;`
+### Cast
 
-- \>= - Greater than or equal to
+#### Description
 
-  `let lt = 1 >= 2;`
+Casts one type to another, currently functions like a `reinterpret_cast` in c++.
+Note that parens are required around a cast expression, in order to avoid a parsing issue.
+
+#### Example
+
+```
+fn takes_u8(i: u8) {}
+
+fn main() -> u32 {
+  let x: u32 = 10;
+  takes_u8((x as u32));
+}
+```
 
 # Dev Notes
 
