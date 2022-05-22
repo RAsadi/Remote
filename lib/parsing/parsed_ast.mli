@@ -12,6 +12,7 @@ module Expr : sig
     | FieldAccess of Span.t * t * Identifier.t
     | Initializer of Span.t * Identifier.t * t list
     | Cast of Span.t * t * Type.t
+  [@@deriving sexp, compare, equal, show]
 end
 
 module Stmt : sig
@@ -34,6 +35,7 @@ module Stmt : sig
     type_annotation : Type.t option;
     defn : Expr.t option;
   }
+  [@@deriving sexp, compare, equal, show]
 end
 
 type typed_var = Span.t * Identifier.t * Type.t
@@ -46,14 +48,18 @@ module Fn : sig
     typ : Type.t;
     body : Stmt.t;
   }
+  [@@deriving sexp, compare, equal, show]
 end
 
 module Struct : sig
   type t = Span.t * Identifier.t * typed_var list
+  [@@deriving sexp, compare, equal, show]
 end
 
 module TopLevelElement : sig
   type t = Fn of Fn.t | Struct of Struct.t
+  [@@deriving sexp, compare, equal, show]
 end
 
-type translation_unit = TopLevelElement.t list [@@deriving sexp, compare, equal]
+type translation_unit = TopLevelElement.t list
+[@@deriving sexp, compare, equal, show]

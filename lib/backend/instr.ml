@@ -58,6 +58,7 @@ type t =
   | Sub of Register.t * Register.t * Operand.t
   | Mul of Register.t * Register.t * Operand.t
   | Div of Register.t * Register.t * Operand.t
+  | MSub of Register.t * Register.t * Register.t * Register.t
   | Lsl of Register.t * Register.t * Operand.t
   | Lsr of Register.t * Register.t * Operand.t
   | Eor of Register.t * Register.t * Operand.t
@@ -88,11 +89,14 @@ let to_string instr =
   | Sub (r1, r2, op) ->
       "sub " ^ Register.to_string r1 ^ ", " ^ Register.to_string r2 ^ ", "
       ^ Operand.to_string op
+  | MSub (r1, r2, r3, r4) ->
+      "msub " ^ Register.to_string r1 ^ ", " ^ Register.to_string r2 ^ ", "
+      ^ Register.to_string r3 ^ ", " ^ Register.to_string r4
   | Mul (r1, r2, op) ->
       "mul " ^ Register.to_string r1 ^ ", " ^ Register.to_string r2 ^ ", "
       ^ Operand.to_string op
   | Div (r1, r2, op) ->
-      "sdiv " ^ Register.to_string r1 ^ ", " ^ Register.to_string r2 ^ ", "
+      "udiv " ^ Register.to_string r1 ^ ", " ^ Register.to_string r2 ^ ", "
       ^ Operand.to_string op
   | Lsl (r1, r2, op) ->
       "lsl " ^ Register.to_string r1 ^ ", " ^ Register.to_string r2 ^ ", "

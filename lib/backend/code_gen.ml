@@ -19,13 +19,14 @@ type exec_context = {
   break_label : string option;
 }
 
-let print_map (var_map : variable_mapping) =
+let _print_map (var_map : variable_mapping) =
   Map.iter_keys var_map ~f:(fun k ->
       let { offset; _ } = Map.find_exn var_map k in
       Stdio.print_endline (k ^ ": " ^ Int.to_string offset))
 
 let rec get_type_size ctx _type =
   match _type with
+  | Any -> raise (Failure "uhoh")
   | U32 -> 4
   | U8 -> 1
   | Bool -> 1
@@ -50,7 +51,7 @@ let get_offset_from_field ctx struct_type field_name =
               else (false, new_total))
       in
       space_needed
-  | _ -> raise (Failure "unrentarst")
+  | _ -> raise (Failure "unreachable")
 
 (* Gives an offset in bytes *)
 let lookup_var (ctx : exec_context) id : variable_info Or_error.t =
@@ -118,6 +119,7 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       | Num i -> Ok [ Instr.Mov (X0, Const i) ]
       | Bool b -> Ok [ Instr.Mov (X0, Const (Bool.to_int b)) ]
       | Char i -> Ok [ Instr.Mov (X0, Const (Char.to_int i)) ]
+      | Null -> Ok [ Instr.Mov (X0, Const 0) ]
       | String s ->
           let str_label = gen_label "strlit" in
           string_list := (str_label, s) :: !string_list;
@@ -133,7 +135,7 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
   | Sizeof (_, _, sizeof_type) ->
       let%map size =
         match sizeof_type with
-        | U32 | U8 | Bool | Void | Pointer _ ->
+        | U32 | U8 | Bool | Void | Pointer _ | Any ->
             Ok (get_type_size ctx sizeof_type)
         | Struct id -> (
             let var_res = lookup_var ctx id in
@@ -170,7 +172,11 @@ let rec gen_expr (ctx : exec_context) (expr : Expr.t) : Instr.t list Or_error.t
       let%bind struct_type =
         match lhs with
         | Var (_, t, _) -> Ok t
-        | _ -> Or_error.error_string "TODO cannot handle non var lhs"
+        | _ -> (
+            let typ = Expr.get_type lhs in
+            match typ with
+            | Struct _ -> Ok typ
+            | _ -> Or_error.error_string "TODO cannot handle non var lhs")
       in
       let%map lhs_instrs = gen_expr ctx lhs in
       (* Based on codegen for var, x0 should now hold the address of var *)
@@ -215,7 +221,10 @@ and gen_postfix ctx _type expr op =
     | _ -> raise (Failure "unreachable")
   in
   match op with
-  | Deref -> Ok (ex @ load_from_offset ctx _type "x0" 0 0)
+  | Deref -> (
+      match _type with
+      | Struct t -> Ok ex
+      | _ -> Ok (ex @ load_from_offset ctx _type "x0" 0 0))
   | Incr ->
       let var_type, var_id = get_var () in
       let%map store_instrs = store_var ctx var_type var_id in
@@ -263,6 +272,9 @@ and gen_binary ctx e1 op e2 =
   | Minus -> push_pop_instr_chain @ [ Instr.Sub (X0, X1, Reg X0) ]
   | Star -> push_pop_instr_chain @ [ Instr.Mul (X0, X0, Reg X1) ]
   | Slash -> push_pop_instr_chain @ [ Instr.Div (X0, X1, Reg X0) ]
+  | Mod ->
+      push_pop_instr_chain
+      @ [ Instr.Div (X2, X1, Reg X0); Instr.MSub (X0, X0, X2, X1) ]
   (* Bitwise *)
   | LShift -> push_pop_instr_chain @ [ Instr.Lsl (X0, X1, Reg X0) ]
   | RShift -> push_pop_instr_chain @ [ Instr.Lsr (X0, X1, Reg X0) ]
@@ -571,12 +583,12 @@ let gen_fn (ctx : exec_context) (fn : Fn.t) : Instr.t list Or_error.t =
     ]
     @ arg_ldr
     @
-    if stack_required > 0 then (
+    if stack_required > 0 then
       let stack_required = Int.round_up ~to_multiple_of:16 stack_required in
-      [ Instr.Sub (Sp, Sp, Const stack_required) ])
+      [ Instr.Sub (Sp, Sp, Const stack_required) ]
     else []
   in
-  (* print_map _ctx.var_map; *)
+  (* _print_map _ctx.var_map; *)
   preamble @ body
 
 let gen_translation_unit (trans : translation_unit) : Instr.t list Or_error.t =

@@ -18,6 +18,7 @@ type t =
   | Sub of Register.t * Register.t * Operand.t
   | Mul of Register.t * Register.t * Operand.t
   | Div of Register.t * Register.t * Operand.t
+  | MSub of Register.t * Register.t * Register.t * Register.t
   | Lsl of Register.t * Register.t * Operand.t
   | Lsr of Register.t * Register.t * Operand.t
   | Eor of Register.t * Register.t * Operand.t

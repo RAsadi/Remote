@@ -15,7 +15,7 @@ module Expr : sig
     | FieldAccess of Span.t * Type.t * t * Identifier.t
     | Initializer of Span.t * Type.t * Identifier.t * t list
     | Cast of Span.t * Type.t * t * Type.t
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 
   val get_type : t -> Type.t
 end = struct
@@ -30,7 +30,7 @@ end = struct
     | FieldAccess of Span.t * Type.t * t * Identifier.t
     | Initializer of Span.t * Type.t * Identifier.t * t list
     | Cast of Span.t * Type.t * t * Type.t
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 
   let get_type expr =
     match expr with
@@ -66,7 +66,7 @@ module Stmt : sig
     type_annotation : Type.t option;
     defn : Expr.t option;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 end = struct
   type t =
     | Declaration of declaration
@@ -87,11 +87,11 @@ end = struct
     type_annotation : Type.t option;
     defn : Expr.t option;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 end
 
 type typed_var = Span.t * Identifier.t * Type.t
-[@@deriving sexp, compare, equal]
+[@@deriving sexp, compare, equal, show]
 
 module Fn : sig
   type t = {
@@ -101,7 +101,7 @@ module Fn : sig
     typ : Type.t;
     body : Stmt.t;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 end = struct
   type t = {
     span : Span.t;
@@ -110,24 +110,27 @@ end = struct
     typ : Type.t;
     body : Stmt.t;
   }
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 end
 
 module Struct : sig
   type t = Span.t * Identifier.t * typed_var list
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 end = struct
   type t = Span.t * Identifier.t * typed_var list
-  [@@deriving sexp, compare, equal]
+  [@@deriving sexp, compare, equal, show]
 end
 
 module TopLevelElement : sig
-  type t = Fn of Fn.t | Struct of Struct.t [@@deriving sexp, compare, equal]
+  type t = Fn of Fn.t | Struct of Struct.t
+  [@@deriving sexp, compare, equal, show]
 end = struct
-  type t = Fn of Fn.t | Struct of Struct.t [@@deriving sexp, compare, equal]
+  type t = Fn of Fn.t | Struct of Struct.t
+  [@@deriving sexp, compare, equal, show]
 end
 
-type translation_unit = TopLevelElement.t list [@@deriving sexp, compare, equal]
+type translation_unit = TopLevelElement.t list
+[@@deriving sexp, compare, equal, show]
 
 let add_struct struct_map ((_, id, var_list) : Parsed_ast.Struct.t) =
   let var_list = List.map var_list ~f:(fun (_, id, typ) -> (id, typ)) in

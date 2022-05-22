@@ -13,6 +13,7 @@ module Expr : sig
     | FieldAccess of Span.t * Type.t * t * string
     | Initializer of Span.t * Type.t * string * t list
     | Cast of Span.t * Type.t * t * Type.t
+  [@@deriving sexp, compare, equal, show]
 
   val get_type : t -> Type.t
 end
@@ -37,9 +38,11 @@ module Stmt : sig
     type_annotation : Type.t option;
     defn : Expr.t option;
   }
+  [@@deriving sexp, compare, equal, show]
 end
 
 type typed_var = Span.t * string * Type.t
+[@@deriving sexp, compare, equal, show]
 
 module Fn : sig
   type t = {
@@ -49,17 +52,21 @@ module Fn : sig
     typ : Type.t;
     body : Stmt.t;
   }
+  [@@deriving sexp, compare, equal, show]
 end
 
 module Struct : sig
   type t = Span.t * string * typed_var list
+  [@@deriving sexp, compare, equal, show]
 end
 
 module TopLevelElement : sig
   type t = Fn of Fn.t | Struct of Struct.t
+  [@@deriving sexp, compare, equal, show]
 end
 
-type translation_unit = TopLevelElement.t list [@@deriving sexp, compare, equal]
+type translation_unit = TopLevelElement.t list
+[@@deriving sexp, compare, equal, show]
 
 val add_struct :
   (string, (string * Type.t) list, 'a) Base.Map.t ->

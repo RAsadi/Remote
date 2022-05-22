@@ -1,1 +1,1 @@
-type t = string [@@deriving sexp, compare, equal]
+type t = string [@@deriving sexp, compare, equal, show]

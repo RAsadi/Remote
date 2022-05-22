@@ -1,7 +1,7 @@
-type mutability = Mut | Const [@@deriving sexp, compare, equal]
+type mutability = Mut | Const [@@deriving sexp, compare, equal, show]
 
-type t = U32 | U8 | Bool | Void | Struct of string | Pointer of t
-[@@deriving sexp, compare, equal]
+type t = Any | U32 | U8 | Bool | Void | Struct of string | Pointer of t
+[@@deriving sexp, compare, equal, show]
 
 val max_u8 : int
 val max_u32 : int

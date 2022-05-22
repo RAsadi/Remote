@@ -1,0 +1,105 @@
+
+
+fn print(ch: u8^, size: u8) {
+  __putstr(1, ch, size);
+}
+
+fn print_digit(i: u8) {
+  let ch = '0' + i;
+  print(&ch, 1);
+}
+
+fn count_live_neighbour(board: u8^, r: u8, c: u8, rows: u8, cols: u8) -> u8 {
+  let mut count = 0;
+  for (let mut i = 0; i < 3; i++) {
+    for (let mut j = 0; j < 3; j++) {
+      let row = r + i - 1;
+      let col = c + j - 1;
+      if (row < rows && col < cols && (row != r || col != c)) {
+        if (board[row * cols + col] == 1) {
+          count++;
+        }
+      }
+    }
+  }
+
+  return count;
+}
+
+fn print_line(cols: u8) {
+  print("\n", 1);
+  for(let mut i = 0; i < cols; i++){
+    print(" -----", 6);
+  }
+  print("\n", 1);
+}
+
+fn print_board(board: u8^, rows: u8, cols: u8) {
+  print_line(cols);
+  for(let mut i = 0; i < rows; i++){
+      print("|", 1);
+      for(let mut j = 0; j < cols; j++){
+          print("  ", 2);
+          print_digit(board[i * cols + j]);
+          print("  |", 3);
+      }
+      print_line(cols);
+  }
+}
+
+fn main() -> u32 {
+  let rows = 5;
+  let cols = 5;
+  let num_iterations = 10;
+
+  let mut board = malloc(rows * cols * sizeof(u8));
+  let mut new_board = malloc(rows * cols * sizeof(u8));
+
+  // Set up a glider
+  board[1] = 1;
+  board[cols + 2] = 1;
+  board[cols * 2] = 1;
+  board[cols * 2 + 1] = 1;
+  board[cols * 2 + 2] = 1;
+
+  for (let mut i = 0; i < num_iterations; i++) {
+    print_board(board, rows, cols);
+
+    // Update the new board state
+    for (let mut r = 0; r < rows; r++) {
+      for (let mut c = 0; c < cols; c++) {
+        let num_live_cells = count_live_neighbour(board, r, c, rows, cols);
+        let board_idx = r * cols + c;
+
+        // Rule #1 : Any live cell with fewer than 2 neighbours dies
+        if (board[board_idx] == 1 && num_live_cells < 2) {
+          new_board[board_idx] = 0;
+        }
+        // Rule #2 : Any live cell with 2 or 3 neighbours lives
+        else if (board[board_idx] == 1 && (num_live_cells == 2 || num_live_cells == 3)) {
+          new_board[board_idx] = 1;
+        }
+        // Rule #3 : Any live cell with more than 3 neighbours dies
+        else if (board[board_idx] == 1 && num_live_cells > 3) {
+          new_board[board_idx] = 0;
+        }
+        // Rule #4 : Any dead cell with exactly 3 neighbours comes back to life
+        else if (board[board_idx] == 0 && num_live_cells == 3) {
+          new_board[board_idx] = 1;
+        }
+      }
+    }
+
+    // Update the board state
+    for (let mut idx = 0; idx < rows * cols; idx++) {
+      board[idx] = new_board[idx];
+    }
+
+    // And then clear the new board for the next run
+    for (let mut idx = 0; idx < rows * cols; idx++) {
+      new_board[idx] = 0;
+    }
+  }
+
+  return 0;
+}

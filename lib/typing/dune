@@ -2,4 +2,4 @@
  (name typing)
  (libraries core ast parsing)
  (preprocess
-  (pps ppx_sexp_conv ppx_compare ppx_import ppx_let)))
+  (pps ppx_sexp_conv ppx_compare ppx_import ppx_let ppx_deriving.show)))

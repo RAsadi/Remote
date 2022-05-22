@@ -39,6 +39,7 @@ rule token = parse
   | "mut" { Mut }
   | "sizeof" { Sizeof }
   | "as" { As }
+  | "null" { Literal Null }
 
   | "struct" { Struct }
 
@@ -68,6 +69,7 @@ rule token = parse
   | '~' { Tilde }
   | '*' { Star }
   | '/' { Slash }
+  | '%' { Mod }
   | '+' { Plus }
   | "++" { Incr }
   | "--" { Decr }

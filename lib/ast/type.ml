@@ -1,9 +1,21 @@
 open Base
 
-type mutability = Mut | Const [@@deriving sexp, compare, equal]
+type mutability = Mut | Const [@@deriving sexp, compare, equal, show]
 
-type t = U32 | U8 | Bool | Void | Struct of Identifier.t | Pointer of t
-[@@deriving sexp, compare, equal]
+type t = Any | U32 | U8 | Bool | Void | Struct of Identifier.t | Pointer of t
+[@@deriving sexp, compare, show]
+
+let rec equal t1 t2 =
+  match (t1, t2) with
+  | Any, _ -> true
+  | _, Any -> true
+  | U32, U32 -> true
+  | U8, U8 -> true
+  | Bool, Bool -> true
+  | Void, Void -> true
+  | Struct i1, Struct i2 -> Identifier.equal i1 i2
+  | Pointer t1, Pointer t2 -> equal t1 t2
+  | _, _ -> false
 
 let max_u8 = Int.pow 2 8 - 1
 let max_u32 = Int.pow 2 32 - 1
@@ -34,4 +46,3 @@ let can_convert_list type_list1 type_list2 =
   | Ok lst ->
       List.fold lst ~init:true ~f:(fun acc (t1, t2) -> acc && can_convert t1 t2)
   | List.Or_unequal_lengths.Unequal_lengths -> false
-

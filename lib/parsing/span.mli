@@ -5,7 +5,7 @@ type lexing_pos = Lexing.position = {
   pos_cnum : int;
 }
 
-type t = lexing_pos * lexing_pos [@@deriving sexp, compare, equal]
+type t = lexing_pos * lexing_pos [@@deriving sexp, compare, equal, show]
 
 val new_t : unit -> lexing_pos * lexing_pos
 

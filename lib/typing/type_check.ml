@@ -57,7 +57,8 @@ let rec type_expr (ctx : ctx) (expr : Parsed_ast.Expr.t) :
           Ok (numeric_type, Literal (span, numeric_type, Num i))
       | Bool b -> Ok (Bool, Literal (span, Bool, Bool b))
       | Char c -> Ok (U8, Literal (span, U8, Char c))
-      | String s -> Ok (Pointer U8, Literal (span, Pointer U8, String s)))
+      | String s -> Ok (Pointer U8, Literal (span, Pointer U8, String s))
+      | Null -> Ok (Pointer Any, Literal (span, Pointer Any, Null)))
   | Unary (span, op, e) -> type_unary_expr ctx span op e
   | Binary (span, e1, op, e2) -> type_binary_expr ctx span e1 op e2
   | Var (span, id) ->
@@ -131,7 +132,7 @@ and type_binary_expr ctx span e1 op e2 =
     | Plus, Pointer p, _ ->
         if is_numeric _type2 then Ok (Pointer p)
         else Or_error.error_string "cannot add to pointer"
-    | Plus, _, _ | Minus, _, _ | Star, _, _ | Slash, _, _ ->
+    | Plus, _, _ | Minus, _, _ | Star, _, _ | Slash, _, _ | Mod, _, _ ->
         if is_numeric _type1 && is_numeric _type2 then
           Ok (bigger_numeric _type1 _type2)
         else Or_error.error_string "cannot do arithmetic on non-numeric types"
@@ -141,10 +142,12 @@ and type_binary_expr ctx span e1 op e2 =
     | LShift, _, _ | RShift, _, _ | And, _, _ | Or, _, _ | Xor, _, _ ->
         if is_numeric _type1 && is_numeric _type2 then
           Ok (bigger_numeric _type1 _type2)
-        else Or_error.error_string (Span.to_string span ^ "cannot do bitwise on non-numeric types")
+        else
+          Or_error.error_string
+            (Span.to_string span ^ "cannot do bitwise on non-numeric types")
     (* Equality *)
-    | Eq, Bool, Bool -> Ok Bool
-    | Neq, Bool, Bool -> Ok Bool
+    | Eq, Bool, Bool | Neq, Bool, Bool -> Ok Bool
+    | Eq, Pointer _, Pointer _ | Neq, Pointer _, Pointer _ -> Ok Bool
     | Eq, _, _ | Neq, _, _ ->
         if is_numeric _type1 && is_numeric _type2 then Ok Bool
         else Or_error.error_string "cannot compare non-numeric types"

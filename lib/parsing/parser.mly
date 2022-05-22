@@ -54,6 +54,7 @@
 %token Plus
 %token Incr
 %token Decr
+%token Mod
 
 // Bitwise
 %token LShift
@@ -222,34 +223,35 @@ let lor_expr :=
 let expr == lor_expr
 
 let unary_op ==
-  | Minus; {  Ast.Operator.Neg }
-  | Bang; {  Ast.Operator.Bang }
-  | Tilde; {  Ast.Operator.Tilde }
+  | Minus; { Ast.Operator.Neg }
+  | Bang; { Ast.Operator.Bang }
+  | Tilde; { Ast.Operator.Tilde }
   | Ampersand; { Ast.Operator.Addr }
 
 let multiplicative_op ==
-  | Star; {  Ast.Operator.Star }
-  | Slash; {  Ast.Operator.Slash }
+  | Star; { Ast.Operator.Star }
+  | Slash; { Ast.Operator.Slash }
+  | Mod; { Ast.Operator.Mod }
 
 let additive_op ==
-  | Plus; {  Ast.Operator.Plus }
-  | Minus; {  Ast.Operator.Minus }
+  | Plus; { Ast.Operator.Plus }
+  | Minus; { Ast.Operator.Minus }
 
 let relational_op ==
-  | Gt; {  Ast.Operator.Gt }
-  | Gte; {  Ast.Operator.Gte }
-  | Lt; {  Ast.Operator.Lt }
-  | Lte; {  Ast.Operator.Lte }
+  | Gt; { Ast.Operator.Gt }
+  | Gte; { Ast.Operator.Gte }
+  | Lt; { Ast.Operator.Lt }
+  | Lte; { Ast.Operator.Lte }
 
 let equality_op ==
-  | Eq; {  Ast.Operator.Eq }
-  | Neq; {  Ast.Operator.Neq }
+  | Eq; { Ast.Operator.Eq }
+  | Neq; { Ast.Operator.Neq }
 
 let shift_op ==
-  | LShift; {  Ast.Operator.LShift }
-  | RShift; {  Ast.Operator.RShift }
+  | LShift; { Ast.Operator.LShift }
+  | RShift; { Ast.Operator.RShift }
 
 let postfix_op ==
-  | Incr; {  Ast.Operator.Incr }
-  | Decr; {  Ast.Operator.Decr }
-  | Caret; {  Ast.Operator.Deref }
+  | Incr; { Ast.Operator.Incr }
+  | Decr; { Ast.Operator.Decr }
+  | Caret; { Ast.Operator.Deref }
